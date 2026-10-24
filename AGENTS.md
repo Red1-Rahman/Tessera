@@ -37,9 +37,9 @@ wrong regardless of whether it otherwise works.
   exception. See `docs/conventions.md`, "Network ban." If a task seems to
   require network access, stop and ask a human; do not implement a
   workaround.
-- **License is GPL v2 or later.** Every new source file gets the header
+- **License is GPL v3 or later.** Every new source file gets the header
   specified in `docs/conventions.md`, "Licensing headers." Do not add a
-  dependency whose license is incompatible with GPL-2.0-or-later without
+  dependency whose license is incompatible with GPL-3.0-or-later without
   flagging it explicitly; when unsure, ask rather than assume
   compatibility.
 - **The Document Model is the only sync path.** Never write code that

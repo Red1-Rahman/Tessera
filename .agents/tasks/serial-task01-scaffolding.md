@@ -42,7 +42,7 @@ LICENSE
 2. Configure `tauri.conf.json` with no network/http capability scope.
    Confirm this explicitly; this file is the single most important
    artifact of this task given the network ban in `docs/conventions.md`.
-3. Add the GPL v2-or-later `LICENSE` file (full text) and the per-file
+3. Add the GPL v3-or-later `LICENSE` file (full text) and the per-file
    header block specified in `docs/conventions.md`, "Licensing headers,"
    to every source file created in this task.
 4. Set up `rustfmt.toml` (if deviating from defaults, document why) and

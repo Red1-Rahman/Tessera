@@ -6,7 +6,7 @@ See docs/architecture.md for the narrative version of this map.
 
 ROOT
   README.md              Project overview, build instructions, license.
-  LICENSE                 Full text of GPL v2 or later.
+  LICENSE                 Full text of GPL v3 or later.
   AGENTS.md                Entry point for AI coding agents working in this repo.
   package.json              Frontend dependencies and npm scripts (tauri dev/build).
   tsconfig.json             TypeScript compiler config, strict mode on.
