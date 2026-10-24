@@ -381,6 +381,19 @@ impl Block {
     pub fn opaque(block: OpaqueBlock) -> Self {
         Block::Opaque(block)
     }
+
+    /// The block's cross-reference label, when it has one. Headings,
+    /// tables, figures, and equations carry labels; every other variant
+    /// returns `None`.
+    pub fn label(&self) -> Option<&str> {
+        match self {
+            Block::Heading { label, .. } => label.as_deref(),
+            Block::Table(table) => table.label(),
+            Block::Figure(figure) => figure.label(),
+            Block::Equation(equation) => equation.label(),
+            _ => None,
+        }
+    }
 }
 
 /// Heading depth, from the sectioning command found in the source (see
@@ -716,17 +729,23 @@ pub enum OpaqueOrigin {
 /// An inline (span-level) node. JSON shape is
 /// `{"type": "<variant>", ...fields}`, per `docs/contracts.md`, section
 /// 1.
+///
+/// Every variant that carries content is a struct variant, never a
+/// newtype over a string or sequence: an internally tagged enum cannot
+/// serialize such a newtype variant (serde fails at runtime), so
+/// `Text(String)` or `Bold(Vec<Inline>)` would make the whole type
+/// unserializable.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum Inline {
-    Text(String),
-    Bold(Vec<Inline>),
-    Italic(Vec<Inline>),
-    Underline(Vec<Inline>),
-    Code(String),
+    Text { text: String },
+    Bold { inline: Vec<Inline> },
+    Italic { inline: Vec<Inline> },
+    Underline { inline: Vec<Inline> },
+    Code { text: String },
     Citation { keys: Vec<String> },
     CrossRef { label: String },
-    Footnote(Vec<Inline>),
+    Footnote { inline: Vec<Inline> },
     InlineMath { latex_source: String },
     LineBreak,
 }
@@ -741,23 +760,23 @@ impl Inline {
                 "text run must not be empty or whitespace-only",
             ));
         }
-        Ok(Inline::Text(text))
+        Ok(Inline::Text { text })
     }
 
     /// Builds a bold span (from `\textbf`, see `docs/specs.md`,
     /// section 1.4).
     pub fn bold(inner: Vec<Inline>) -> Self {
-        Inline::Bold(inner)
+        Inline::Bold { inline: inner }
     }
 
     /// Builds an italic span (from `\textit`/`\emph`).
     pub fn italic(inner: Vec<Inline>) -> Self {
-        Inline::Italic(inner)
+        Inline::Italic { inline: inner }
     }
 
     /// Builds an underlined span (from `\underline`).
     pub fn underline(inner: Vec<Inline>) -> Self {
-        Inline::Underline(inner)
+        Inline::Underline { inline: inner }
     }
 
     /// Builds an inline code run (from `\texttt`/`\verb`). Must be
@@ -769,7 +788,7 @@ impl Inline {
                 "code run must not be empty",
             ));
         }
-        Ok(Inline::Code(text))
+        Ok(Inline::Code { text })
     }
 
     /// Builds a citation group (from `\cite{key1,key2}`). Every key must
@@ -806,7 +825,7 @@ impl Inline {
 
     /// Builds a footnote span (from `\footnote`).
     pub fn footnote(inner: Vec<Inline>) -> Self {
-        Inline::Footnote(inner)
+        Inline::Footnote { inline: inner }
     }
 
     /// Builds inline math (from `$...$`). The math source must be

@@ -11,7 +11,7 @@
 //! so both the accept and the reject path of every constructor is
 //! pinned here (see `.agents/tasks/serial-task02-document-model.md`).
 
-use serde_json::{json, to_value};
+use serde_json::{from_value, json, to_value};
 
 use tessera_lib::core::error::{Pane, SourceSpan, TesseraError};
 use tessera_lib::core::model::*;
@@ -317,10 +317,31 @@ fn block_heading_serializes_with_a_type_tag() {
         json!({
             "type": "Heading",
             "level": "H2",
-            "inline": [{ "type": "Text", "value": "Methods" }],
+            "inline": [{ "type": "Text", "text": "Methods" }],
             "label": "sec:methods"
         })
     );
+}
+
+#[test]
+fn inline_round_trips_through_serde() {
+    let inline = Inline::bold(vec![
+        Inline::text("important".to_string()).expect("valid text"),
+        Inline::inline_math("x^2".to_string()).expect("valid math"),
+    ]);
+    let value = to_value(&inline).expect("serialize");
+    assert_eq!(
+        value,
+        json!({
+            "type": "Bold",
+            "inline": [
+                { "type": "Text", "text": "important" },
+                { "type": "InlineMath", "latex_source": "x^2" }
+            ]
+        })
+    );
+    let back: Inline = from_value(value).expect("deserialize");
+    assert_eq!(back, inline);
 }
 
 #[test]

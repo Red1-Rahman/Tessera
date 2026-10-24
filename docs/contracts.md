@@ -144,18 +144,20 @@ pub struct OpaqueBlock {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum OpaqueOrigin { Latex, Docx }
 
-/// An inline (span-level) node.
+/// An inline (span-level) node. All variants are struct variants: an
+/// internally tagged enum cannot serialize a newtype variant holding a
+/// string or sequence, so `Text(String)` would be unserializable.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum Inline {
-    Text(String),
-    Bold(Vec<Inline>),
-    Italic(Vec<Inline>),
-    Underline(Vec<Inline>),
-    Code(String),
+    Text { text: String },
+    Bold { inline: Vec<Inline> },
+    Italic { inline: Vec<Inline> },
+    Underline { inline: Vec<Inline> },
+    Code { text: String },
     Citation { keys: Vec<String> },
     CrossRef { label: String },
-    Footnote(Vec<Inline>),
+    Footnote { inline: Vec<Inline> },
     InlineMath { latex_source: String },
     LineBreak,
 }
@@ -205,11 +207,22 @@ raw `u64` for display and logging only.
   shared key used for `Inline::CrossRef`, mirroring LaTeX's `\label`/
   `\ref` pairing so DOCX cross-references map onto it directly.
 
-Implementation note (serial-task02): implementing section 1 required no
-shape changes to the documented types. The only code-level
-restrictions, private fields plus validating constructors and a
-non-constructible `DocVersion`, are described in section 1's intro and
-"Constructors" subsection and do not change any JSON shape.
+Implementation note (serial-task02): implementing section 1 found one
+shape change. `Inline` was documented with `#[serde(tag = "type")]`
+while six of its variants were newtypes over a string or a sequence
+(`Text(String)`, `Bold(Vec<Inline>)`, `Italic`, `Underline`,
+`Code(String)`, `Footnote(Vec<Inline>)`). An internally tagged enum
+cannot serialize a newtype variant with that shape, so the documented
+type produced a runtime error ("cannot serialize tagged newtype
+variant") for any inline content. Those variants are now struct
+variants (`Text { text }`, `Bold { inline }`, `Code { text }`,
+`Footnote { inline }`, and the italic/underline equivalents), keeping
+the `type` tag both documented and real. Variant names are unchanged,
+so `docs/specs.md`'s LaTeX-to-node mappings still apply as written. All
+other section 1 types implemented exactly as documented; the only
+code-level restrictions, private fields plus validating constructors and
+a non-constructible `DocVersion`, are described in section 1's intro
+and "Constructors" subsection and do not change any JSON shape.
 
 ## 2. Tauri command surface (Rust to frontend)
 
