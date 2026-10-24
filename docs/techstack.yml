@@ -1,0 +1,131 @@
+# Tessera tech stack
+#
+# This file is the canonical list of languages, frameworks, and key
+# crates/packages used in Tessera, with the reason each was chosen.
+# Update this file in the same pull request that adds or removes a
+# dependency with architectural significance (not every leaf crate needs
+# an entry here, just anything that shapes how the codebase is built).
+
+project:
+  name: Tessera
+  license: GPL-2.0-or-later
+  copyright: "Copyright (c) 2026 Redwan Rahman"
+  offline_only: true
+  platforms:
+    - windows
+    - macos
+    - linux
+
+shell:
+  framework: tauri
+  version: "2.x"
+  reason: >
+    Ships the OS-native webview instead of bundling Chromium, keeping
+    binaries small and the Rust side as the trusted compute base.
+    Tauri's capabilities/permissions model makes "no network access" an
+    auditable config rather than a convention. See docs/architecture.md,
+    "Why Tauri over Electron."
+  network_policy: >
+    No capability in tauri.conf.json grants http/network scope. CI
+    enforces this; see docs/conventions.md, "Network ban."
+
+backend:
+  language: rust
+  edition: "2021"
+  toolchain: stable
+  key_crates:
+    - name: serde
+      purpose: Serialization for the Document Model and all IPC types.
+      reason: De facto standard, used as the Rust analogue of Pydantic
+        model validation at type boundaries (see docs/contracts.md).
+    - name: serde_json
+      purpose: JSON (de)serialization for Tauri command payloads.
+    - name: thiserror
+      purpose: Ergonomic error type definitions (TesseraError variants).
+    - name: anyhow
+      purpose: Internal error context in binaries/top-level command
+        handlers only, never in library-level core/ code, where typed
+        errors are required. See docs/conventions.md.
+    - name: tauri
+      purpose: Application shell, window management, IPC, clipboard,
+        file dialogs.
+    - name: nom
+      purpose: Parser combinators for the LaTeX parser
+        (core/latex/parser.rs).
+      reason: Predictable, dependency-light, well-suited to LaTeX's
+        token-then-structure grammar without needing a full parser
+        generator toolchain.
+    - name: quick-xml
+      purpose: Low-level OOXML (DOCX) XML reading/writing
+        (core/docx/reader.rs, core/docx/writer.rs).
+    - name: zip
+      purpose: Reading and writing the DOCX zip container.
+    - name: printpdf
+      purpose: Built-in PDF typesetter fallback when no system TeX
+        engine is available. See docs/architecture.md, "PDF export
+        strategy."
+    - name: pulldown-cmark
+      purpose: Markdown export rendering (core/export/markdown.rs).
+    - name: proptest
+      purpose: Property-based round-trip testing of the Document Model.
+        See docs/contracts.md, "Contract testing."
+    - name: insta
+      purpose: Snapshot testing for serialized contract shapes.
+    - name: tracing
+      purpose: Structured, local-only logging. No remote log sink is
+        ever configured.
+
+frontend:
+  language: typescript
+  framework: react
+  version: "18.x"
+  bundler: vite
+  reason: >
+    React + TypeScript gives a typed, componentized UI for two
+    interdependent rich editors and a toolbar/menu system. Vite is
+    Tauri's documented, well-supported bundler and keeps dev-mode
+    reload fast. The frontend is a thin, presentation-only layer; all
+    conversion logic lives in Rust (see docs/architecture.md), so the
+    frontend framework choice does not affect correctness, only
+    developer experience and editor-widget availability.
+  key_packages:
+    - name: "@tauri-apps/api"
+      purpose: Typed wrappers for invoke(), clipboard, dialog, fs scope
+        calls used from src/ipc/commands.ts.
+    - name: codemirror (6.x)
+      purpose: LaTeX pane editor. Chosen for first-class custom
+        language/highlight support needed for the Okabe-Ito theme (see
+        docs/specs.md, section 5) and good performance on large
+        documents.
+    - name: "prosemirror (or tiptap, a prosemirror wrapper)"
+      purpose: DOCX pane structured editor. Chosen over a plain
+        contenteditable implementation because it models documents as a
+        tree, which maps naturally onto the Document Model
+        (docs/contracts.md) rather than onto raw HTML/DOM diffing.
+    - name: vitest
+      purpose: Frontend unit tests.
+    - name: playwright
+      purpose: End-to-end tests driving the built Tauri app, used in CI
+        (see .github/workflows/).
+
+why_not_electron: >
+  See docs/architecture.md, "Why Tauri over Electron."
+
+why_rust_over_a_scripting_language_for_core_logic: >
+  The conversion engines are the trust boundary for an offline tool
+  handling unpublished research. Rust's memory safety and strong type
+  system (serde-validated types at every boundary, see docs/contracts.md)
+  reduce the risk of parser bugs becoming security or data-loss issues,
+  and Rust binaries embed cleanly into Tauri without an additional
+  runtime (Python, Node) that would need to ship and be kept patched.
+
+explicitly_excluded:
+  - item: any network HTTP client crate (reqwest, hyper as a client, etc.)
+    reason: The application must never need one. Its presence in
+      Cargo.toml would itself be a code-review red flag; see
+      docs/conventions.md, "Network ban."
+  - item: auto-update frameworks
+    reason: Offline-first; updates are a manual download of a new
+      release, not an in-app network check.
+  - item: analytics/telemetry SDKs
+    reason: No telemetry, by design (see README.md, "Non-features").

@@ -1,0 +1,86 @@
+TESSERA CODEBASE MAP
+Plain-text index of the repository layout and what each path is for.
+Kept in sync manually; if a path listed here no longer exists or a new
+top-level path was added without an entry, that is a documentation bug.
+See docs/architecture.md for the narrative version of this map.
+
+ROOT
+  README.md              Project overview, build instructions, license.
+  LICENSE                 Full text of GPL v2 or later.
+  AGENTS.md                Entry point for AI coding agents working in this repo.
+  package.json              Frontend dependencies and npm scripts (tauri dev/build).
+  tsconfig.json             TypeScript compiler config, strict mode on.
+
+.github/
+  workflows/
+    build-linux.yml           CI: build and test on Linux. Triggers on src/ or tests/ changes, push, PR, workflow_dispatch.
+    build-macos.yml          CI: build and test on macOS. Same triggers.
+    build-windows.yml          CI: build and test on Windows. Same triggers.
+
+.agents/
+  prompts/                   Task-specific prompt templates for AI agents, see AGENTS.md.
+  skills/                     Reusable skill files for AI agents, see AGENTS.md.
+
+docs/
+  architecture.md             System design, module boundaries, sync flow, storage model.
+  contracts.md                 Canonical data shapes: Document Model, Tauri IPC, on-disk format.
+  specs.md                      Exact supported LaTeX subset and DOCX mapping rules.
+  conventions.md                 Coding standards, network ban, testing policy, style rules.
+  techstack.yml                   Dependency list with rationale per choice.
+  codebase.txt                     This file.
+
+src/                                  Frontend: TypeScript + React, bundled with Vite.
+  main.tsx                             App entry point.
+  App.tsx                              Root component, split-pane layout.
+  editors/
+    LatexEditor.tsx                     CodeMirror 6 instance for the LaTeX pane. Okabe-Ito theme.
+    DocxEditor.tsx                       ProseMirror/Tiptap instance for the DOCX pane.
+  state/
+    documentStore.ts                       Single store mirroring backend Document Model version. Debounce constants live here.
+  ipc/
+    commands.ts                            Only file allowed to call Tauri invoke() directly. Typed wrappers for every command in docs/contracts.md section 2.
+  components/
+    SplitPane.tsx                            Resizable two-pane layout container.
+    ExportMenu.tsx                             Export format picker (LaTeX, DOCX, PDF, Markdown, plain text, clipboard).
+    Toolbar.tsx                                 Top-level app toolbar.
+
+src-tauri/                                        Backend: Rust, Tauri app shell.
+  Cargo.toml                                        Rust dependencies. No network-capable crates permitted, see docs/conventions.md.
+  tauri.conf.json                                     Tauri app config. No network/http capability scope granted.
+  src/
+    main.rs                                            App bootstrap, window setup.
+    commands/                                           Thin Tauri command handlers (IPC surface only).
+      mod.rs
+      document.rs                                         open_project, new_project, parse_latex, apply_docx_edit, save_project.
+      export.rs                                             export (LaTeX, DOCX, PDF, Markdown, plain text, clipboard).
+    core/                                                  All conversion/business logic lives here, framework-agnostic.
+      mod.rs
+      model.rs                                                Document Model type definitions (docs/contracts.md section 1).
+      diff.rs                                                  Document Model diffing for incremental pane updates.
+      latex/
+        parser.rs                                              LaTeX source -> Document Model.
+        printer.rs                                              Document Model -> LaTeX source.
+        highlight.rs                                            Okabe-Ito token classification, shares parser internals.
+      docx/
+        reader.rs                                              DOCX (OOXML zip) -> Document Model.
+        writer.rs                                              Document Model -> DOCX (OOXML zip), targets Word built-in styles.
+      export/
+        pdf.rs                                                   PDF export: system TeX engine detection + built-in typesetter fallback.
+        markdown.rs                                             Markdown export.
+        plaintext.rs                                              Plain text export.
+
+tests/                                                      Top-level integration/e2e test fixtures and specs, cross-cutting both src/ and src-tauri/.
+  fixtures/                                                   Golden .tex / .docx sample files used by contract and round-trip tests.
+  e2e/                                                         Playwright end-to-end specs driving the built app.
+
+src-tauri/tests/                                           Rust integration tests (kept alongside the crate per Cargo convention).
+  contracts.rs                                              Golden-file, round-trip (proptest), and snapshot (insta) tests for docs/contracts.md types.
+
+NOTES FOR AGENTS AND NEW CONTRIBUTORS
+- The Document Model (src-tauri/src/core/model.rs) is the one thing both
+  panes depend on. Read docs/contracts.md before touching it.
+- commands/ files should stay small. If a handler is doing real logic,
+  that logic belongs in core/ instead, so it is unit-testable without
+  Tauri or a webview.
+- Anything touching src-tauri/Cargo.toml dependencies: check
+  docs/conventions.md "Network ban" first.
