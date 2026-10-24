@@ -6,10 +6,18 @@ on:
     paths:
       - "src/**"
       - "tests/**"
+      - "src-tauri/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-windows.yml"
   pull_request:
     paths:
       - "src/**"
       - "tests/**"
+      - "src-tauri/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/build-windows.yml"
   workflow_dispatch: {}
 
 jobs:
