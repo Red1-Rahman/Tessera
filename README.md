@@ -1,106 +1,110 @@
-# AGENTS.md
+# Tessera
 
-This file is the entry point for any AI coding agent (Claude Code,
-Cursor, Copilot Workspace, or similar) working in this repository. Read
-this file first, then the specific documents it points to, before making
-changes.
+A local, offline desktop application that keeps a LaTeX document and a Word
+(.docx) document synchronized through a shared intermediate model. Edit
+either side and the other updates to match. No network access, no telemetry,
+no cloud sync. Everything stays on disk, in formats you can open with any
+other tool.
 
-## Read in this order
+Built for people writing academic papers who want LaTeX's typesetting and
+version-control friendliness together with a Word view for collaborators,
+reviewers, and journals that require `.docx` submissions, without uploading
+a manuscript to a third-party web converter.
 
-1. `README.md` for the project's purpose and non-features.
-2. `docs/architecture.md` for how the system fits together.
-3. `docs/contracts.md` for exact data shapes. Treat this as load-bearing;
-   do not infer a type's shape from a single call site when this document
-   defines it.
-4. `docs/specs.md` for what LaTeX/DOCX behavior is actually in scope.
-   Do not implement support for a construct this document lists as
-   out of scope or deferred without first updating `docs/specs.md`
-   in the same change and flagging it to a human reviewer.
-5. `docs/conventions.md` for coding standards, including the network ban
-   and documentation style rules below.
-6. `docs/codebase.txt` for a quick path-to-purpose lookup when you need to
-   find where something lives without reading all of `docs/architecture.md`
-   again.
+## Why this exists
 
-Task-specific instructions live in `.agents/prompts/`. Reusable,
-cross-task standards live in `.agents/skills/`. Load the ones relevant to
-your current task; you do not need to read every file in both directories
-for every change.
+Online LaTeX-to-docx converters require uploading the manuscript to a server
+you do not control. For unpublished research, that is not an acceptable
+trade-off. Tessera runs entirely on the user's machine. The Rust backend
+never opens a network socket for anything other than the OS file dialogs and
+the local filesystem.
 
-## Hard constraints (non-negotiable)
+## Core features
 
-These are not style preferences. A change that violates any of these is
-wrong regardless of whether it otherwise works.
+- Split-pane editor: LaTeX source on one side, a structured DOCX-equivalent
+  view on the other.
+- Bidirectional sync. A change in either pane updates the shared document
+  model, which re-renders both panes.
+- Okabe-Ito colorblind-safe syntax highlighting for LaTeX.
+- Export to LaTeX (`.tex`), Word (`.docx`), PDF, Markdown (`.md`), and plain
+  text (`.txt`).
+- Copy the current document to the clipboard in any of the above formats.
+- All files live wherever the user saves them. A saved project is a plain
+  directory, readable and editable outside the app.
+- No internet access. No accounts. No analytics.
 
-- **No network access, ever.** No HTTP client crate, no network
-  capability in `tauri.conf.json`, no "just for this one feature"
-  exception. See `docs/conventions.md`, "Network ban." If a task seems to
-  require network access, stop and ask a human; do not implement a
-  workaround.
-- **License is GPL v2 or later.** Every new source file gets the header
-  specified in `docs/conventions.md`, "Licensing headers." Do not add a
-  dependency whose license is incompatible with GPL-2.0-or-later without
-  flagging it explicitly; when unsure, ask rather than assume
-  compatibility.
-- **The Document Model is the only sync path.** Never write code that
-  updates the LaTeX pane and DOCX pane independently for the same logical
-  edit. All edits flow through `core/model.rs` types as described in
-  `docs/architecture.md`, "Sync flow." If a feature seems to require a
-  pane-to-pane shortcut, that is a sign the Document Model needs a new
-  node type, not a sign to bypass it.
-- **No silent data loss.** A LaTeX or DOCX construct that cannot be
-  represented in the Document Model must become an `Opaque` block (see
-  `docs/contracts.md`), not be dropped, approximated without a warning,
-  or guessed at.
-- **Contracts and specs are updated in the same change as the code that
-  needs them updated.** If you change a type in `src-tauri/src/core/
-  model.rs`, update `docs/contracts.md` in the same patch. If you add
-  support for a new LaTeX construct, update `docs/specs.md` in the same
-  patch. A code change that makes a doc wrong is an incomplete change.
+## Non-features (by design)
 
-## Writing style for anything this agent produces
+- No cloud sync, no accounts, no telemetry, no update check over the
+  network.
+- No LaTeX package manager. Tessera renders a defined, documented subset of
+  LaTeX (see `docs/specs.md`). It is not a full TeX distribution
+  replacement; for PDF export it shells out to a local, user-installed TeX
+  engine if present, and falls back to its own typesetter otherwise (see
+  `docs/architecture.md`).
 
-- No em dashes, in code comments, commit messages, generated
-  documentation, or PR descriptions. See `docs/conventions.md`,
-  "Documentation style."
-- Use Pydantic-style validation discipline where it is relevant: in this
-  codebase that means Rust types crossing a serialization boundary are
-  validated at construction (see `docs/conventions.md`, Rust style, and
-  `docs/contracts.md`'s intro paragraph). When writing or reviewing a new
-  `serde`-derived type that takes untrusted input, give it a validating
-  constructor rather than relying on `serde`'s default derive alone.
+## Status
 
-## Before opening a pull request
+Pre-1.0. See `docs/specs.md` for the supported LaTeX subset and
+`docs/contracts.md` for the data contracts between the Rust core and the
+frontend. This repository is being developed with AI coding agents in the
+loop; see `AGENTS.md` for how agents are expected to work in this codebase.
 
-Run through this checklist. `.agents/prompts/pr-checklist.md` has the
-expanded version with exact commands.
+## Tech stack
 
-- [ ] `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`
-      pass.
-- [ ] `cargo test` passes, including the `proptest` round-trip suite in
-      `src-tauri/tests/contracts.rs`.
-- [ ] Frontend lints and `vitest` pass.
-- [ ] No new dependency introduces network capability (check
-      `cargo tree` and `package.json` diffs).
-- [ ] `docs/contracts.md` and `docs/specs.md` updated if this change
-      touches either.
-- [ ] No em dashes in anything written for this change.
-- [ ] New source files carry the GPL header.
+Rust (core, document model, file I/O) + Tauri (desktop shell) + TypeScript
+and React (editor UI), compiled to static assets bundled into the app, with
+no runtime network fetches. Full rationale in `docs/techstack.yml`.
 
-## When you are unsure
+## Building from source
 
-Prefer asking over guessing for anything touching: the network ban, the
-Document Model schema, license compatibility of a new dependency, or
-whether a LaTeX/DOCX construct should be first-class or `Opaque`. Getting
-these wrong is expensive to unwind later; getting a UI detail wrong is
-not.
+Prerequisites: a stable Rust toolchain, Node.js LTS, and the platform
+dependencies Tauri requires (see
+[Tauri's prerequisites guide](https://tauri.app/start/prerequisites/) for
+your OS).
 
-## Directory guide for agents
+```bash
+git clone https://github.com/redwanrahman/tessera.git
+cd tessera
+npm install
+npm run tauri dev      # development, hot reload
+npm run tauri build    # release binaries in src-tauri/target/release/bundle
+```
 
-- `.agents/prompts/` holds instructions for specific recurring tasks
-  (adding a LaTeX construct, adding an export format, fixing a round-trip
-  bug, release prep). Start here if your task matches one of these.
-- `.agents/skills/` holds standing skills an agent should apply whenever
-  relevant, regardless of the specific task (Rust style enforcement,
-  contract-change discipline, cross-platform build awareness, frontend
-  design decisions for the split-pane editor).
+Platform-specific CI builds are defined in `.github/workflows/`:
+
+- `build-linux.yml`
+- `build-macos.yml`
+- `build-windows.yml`
+
+Each triggers on pushes and pull requests that touch `src/` or `tests/`,
+and can also be run manually (`workflow_dispatch`).
+
+## Project layout
+
+```
+tessera/
+├── src/                  # TypeScript + React frontend
+├── src-tauri/            # Rust backend, Tauri app shell
+│   ├── src/
+│   │   ├── core/         # document model, conversion engines
+│   │   ├── commands/     # Tauri command handlers (IPC surface)
+│   │   └── main.rs
+│   └── Cargo.toml
+├── tests/
+├── docs/                 # architecture, specs, contracts, conventions
+├── .agents/               # prompts and skills for AI coding agents
+└── .github/workflows/
+```
+
+See `docs/architecture.md` for how the pieces fit together, `docs/specs.md`
+for exactly what LaTeX and DOCX features are supported, and
+`docs/conventions.md` for coding standards.
+
+## License
+
+GPL v3 or later. Copyright (c) 2026 Redwan Rahman. See `LICENSE` for the
+full text. Tessera is free software: you may redistribute and modify it
+under the terms of the GNU General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option)
+any later version.
