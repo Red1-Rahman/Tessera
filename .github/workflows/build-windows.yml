@@ -1,0 +1,103 @@
+name: Build and Test (Windows)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+  workflow_dispatch: {}
+
+jobs:
+  build-and-test:
+    name: Build and test on Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Check Rust formatting
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: Run Rust clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Check for network-capable dependencies
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          if cargo tree | grep -iE "reqwest|hyper|ureq|tokio-tungstenite"; then
+            echo "::warning::Network-capable crate detected in dependency tree. See docs/conventions.md, 'Network ban'."
+          fi
+
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test --all-features
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Typecheck frontend
+        run: npm run typecheck
+
+      - name: Run frontend unit tests
+        run: npm run test -- --run
+
+      - name: Build Tauri app (debug)
+        run: npm run tauri build -- --debug
+
+  e2e:
+    name: End-to-end tests on Windows
+    runs-on: windows-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run end-to-end tests
+        run: npm run test:e2e
