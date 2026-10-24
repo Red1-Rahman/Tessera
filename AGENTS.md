@@ -102,4 +102,5 @@ not.
   bug, release prep). Start here if your task matches one of these.
 - `.agents/skills/` holds standing skills an agent should apply whenever
   relevant, regardless of the specific task (Rust style enforcement,
-  contract-change discipline, cross-platform build awareness).
+  contract-change discipline, cross-platform build awareness, frontend
+  design decisions for the split-pane editor).
