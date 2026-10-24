@@ -69,15 +69,22 @@ fn figure_accepts_relative_asset_path_with_width() {
     assert_eq!(figure.asset_path(), "figure1.png");
     assert_eq!(figure.label(), Some("fig:pipeline"));
     assert_eq!(figure.width_percent(), Some(75.0));
+
+    let nested = Figure::new("figures/plot1.png".to_string(), None, None, None)
+        .expect("nested relative path is valid");
+    assert_eq!(nested.asset_path(), "figures/plot1.png");
 }
 
 #[test]
 fn figure_rejects_absolute_and_traversing_paths() {
     for path in [
         "C:\\secrets\\img.png",
+        "C:img.png",
+        "\\\\server\\share\\img.png",
         "/etc/img.png",
         "../img.png",
         "a/../b.png",
+        "..\\img.png",
     ] {
         let error =
             validation_message(Figure::new(path.to_string(), None, None, None).unwrap_err());

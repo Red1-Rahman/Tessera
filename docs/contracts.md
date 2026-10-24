@@ -179,7 +179,7 @@ TesseraError>` with a `ValidationError` naming the offending field. The
 | `Block` | `Block::heading`, `Block::paragraph`, `Block::list`, `Block::table`, `Block::figure`, `Block::equation`, `Block::code_block`, `Block::quote`, `Block::opaque` | invalid heading `label`; empty `language` when present |
 | `Table` | `Table::new(rows, caption, label)` | invalid `label` |
 | `TableCell` | `TableCell::new(blocks, col_span, row_span)` | `col_span` or `row_span` of 0 |
-| `Figure` | `Figure::new(asset_path, caption, label, width_percent)` | empty `asset_path`; absolute path or `..` traversal; `width_percent` outside (0, 100] or non-finite; invalid `label` |
+| `Figure` | `Figure::new(asset_path, caption, label, width_percent)` | empty `asset_path`; any path that escapes `.tessera/assets` on any platform (POSIX/UNC absolute, drive-prefixed such as `C:\img.png`, or containing `..`); `width_percent` outside (0, 100] or non-finite; invalid `label` |
 | `Equation` | `Equation::new(latex_source, display_mode, label)` | empty `latex_source`; invalid `label` |
 | `OpaqueBlock` | `OpaqueBlock::new(origin, raw, summary)` | empty `raw`; empty `summary` |
 | `Inline` | `Inline::text`, `Inline::bold`, `Inline::italic`, `Inline::underline`, `Inline::code`, `Inline::citation`, `Inline::cross_ref`, `Inline::footnote`, `Inline::inline_math`, `Inline::line_break` | empty text/code/math; empty citation key list or empty key; invalid `cross_ref` label |

@@ -31,7 +31,6 @@
 //! definition). See `docs/contracts.md`, "Contract testing".
 
 use std::fmt;
-use std::path::{Component, Path};
 
 use serde::{Deserialize, Serialize};
 
@@ -533,14 +532,39 @@ pub struct Figure {
     width_percent: Option<f32>,
 }
 
+/// True when an asset path could escape the `.tessera/assets` directory
+/// on any target platform, not just the host one.
+///
+/// `std::path` only recognizes the current platform's separators and
+/// drive syntax, so `C:\img.png` looks like a plain filename when this
+/// code runs on Unix. Asset paths come from parsed LaTeX and from IPC
+/// payloads, and the same project folder must open identically on
+/// Windows, macOS, and Linux (see `docs/architecture.md`, "Storage
+/// model"), so they are checked against a portable rule instead of a
+/// host-platform one: reject POSIX or UNC absolute paths, anything with
+/// a drive prefix such as `C:\img.png` or `C:img.png`, and any `..`
+/// segment no matter which separator introduces it.
+fn is_unsafe_asset_path(path: &str) -> bool {
+    let portable = path.replace('\\', "/");
+    if portable.starts_with('/') {
+        return true;
+    }
+    let bytes = portable.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        return true;
+    }
+    portable.split('/').any(|segment| segment == "..")
+}
+
 impl Figure {
     /// Validates and builds a figure.
     ///
     /// `asset_path` is relative to the project's `.tessera/assets`
-    /// directory, so absolute paths and `..` traversal are rejected:
-    /// this string may come from an IPC payload and must not be usable
-    /// to point the file loader outside the project. `width_percent`,
-    /// when present, must be a finite value in (0, 100].
+    /// directory; anything that would escape it on any platform is
+    /// rejected by [`is_unsafe_asset_path`], since this string may come
+    /// from an IPC payload and must not be usable to point the file
+    /// loader outside the project. `width_percent`, when present, must
+    /// be a finite value in (0, 100].
     pub fn new(
         asset_path: String,
         caption: Option<Vec<Inline>>,
@@ -554,17 +578,10 @@ impl Figure {
                 "asset path must not be empty or whitespace-only",
             ));
         }
-        let path = Path::new(trimmed_path);
-        let traverses = path.components().any(|component| {
-            matches!(
-                component,
-                Component::RootDir | Component::Prefix(_) | Component::ParentDir
-            )
-        });
-        if path.is_absolute() || traverses {
+        if is_unsafe_asset_path(trimmed_path) {
             return Err(TesseraError::validation(
                 "figure.asset_path",
-                "asset path must be relative to .tessera/assets and must not contain '..'",
+                "asset path must be relative to .tessera/assets, with no drive prefix and no '..'",
             ));
         }
         if let Some(width) = width_percent {
