@@ -14,6 +14,11 @@ commits do not already explain. Keep entries factual and specific, with
 file paths and commands, and no em dashes (see `docs/conventions.md`,
 "Documentation style").
 
+Session state belongs here; durable rules do not. A lesson that
+applies beyond this repository and this session goes to
+`.agents/skills/lessons-learned.md` as a tip instead, so this log stays
+history and that file stays rules.
+
 ---
 
 ## 2026-10-24: serial-task01 (scaffolding) and serial-task02 (Document Model) complete

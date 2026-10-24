@@ -120,11 +120,14 @@ not.
 - `.agents/skills/` holds standing skills an agent should apply whenever
   relevant, regardless of the specific task (Rust style enforcement,
   contract-change discipline, cross-platform build awareness, frontend
-  design decisions for the split-pane editor, and
-  `ci-green-discipline.md`, the tips for not repeating mistakes that
-  have already turned CI red, including the workflow `paths:` filters).
-  These apply continuously across every task in `.agents/tasks/`, not
-  just one.
+  design decisions for the split-pane editor). These apply continuously
+  across every task in `.agents/tasks/`, not just one.
+- `.agents/skills/lessons-learned.md` is a transferable,
+  project-agnostic tips log, distinct from the skills above in that it
+  is meant to grow: at the end of a session, add a tip there whenever
+  something produced a lesson worth carrying to future work, phrased as
+  a rule rather than a history. It is written so it can be copied into
+  any repository unchanged.
 - `.agents/handoff.md` is the running session log. At the end of a
   session, add a new entry at the top of that file if the next agent
   needs to know something that the code, `docs/`, and the commit
