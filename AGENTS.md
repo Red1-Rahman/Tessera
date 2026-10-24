@@ -97,10 +97,23 @@ not.
 
 ## Directory guide for agents
 
-- `.agents/prompts/` holds instructions for specific recurring tasks
-  (adding a LaTeX construct, adding an export format, fixing a round-trip
-  bug, release prep). Start here if your task matches one of these.
+- `.agents/tasks/` holds the incremental build plan: a numbered,
+  dependency-ordered sequence of tasks from empty scaffolding to a
+  release-ready v1. Start at `.agents/tasks/00-index.md` if you are
+  picking up a fresh build task or assigning work across multiple
+  subagents; it explains the `serial-taskNN` / `parallel-taskNN-X`
+  naming convention and shows the full dependency graph. Each task file
+  states its own prerequisites, which files it owns, and a "Definition
+  of done" checklist; do not start a task whose prerequisites are not
+  yet complete.
+- `.agents/prompts/` holds instructions for specific recurring task
+  *types* that come up repeatedly across the project's life, not just
+  during the initial build (adding a LaTeX construct, adding an export
+  format, fixing a round-trip bug, the pre-PR checklist). A task file in
+  `.agents/tasks/` will often point to one of these for the detailed
+  how-to of a step within it.
 - `.agents/skills/` holds standing skills an agent should apply whenever
   relevant, regardless of the specific task (Rust style enforcement,
   contract-change discipline, cross-platform build awareness, frontend
-  design decisions for the split-pane editor).
+  design decisions for the split-pane editor). These apply continuously
+  across every task in `.agents/tasks/`, not just one.
