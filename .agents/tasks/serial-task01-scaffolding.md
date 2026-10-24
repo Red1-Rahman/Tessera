@@ -73,7 +73,7 @@ LICENSE
 - [ ] `tauri.conf.json` has no network/http capability scope. Checked by
       hand, not just by CI, since this is the first and most important
       line of defense for the network ban.
-- [ ] `LICENSE` file present with full GPL v2-or-later text.
+- [ ] `LICENSE` file present with full GPL v3-or-later text.
 - [ ] Every created source file has the license header from
       `docs/conventions.md`.
 - [ ] Directory layout matches `docs/codebase.txt` (empty directories
