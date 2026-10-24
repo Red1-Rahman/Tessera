@@ -9,7 +9,15 @@ ROOT
   LICENSE                 Full text of GPL v3 or later.
   AGENTS.md                Entry point for AI coding agents working in this repo.
   package.json              Frontend dependencies and npm scripts (tauri dev/build).
+  package-lock.json          Locked frontend dependency tree (npm ci in CI).
   tsconfig.json             TypeScript compiler config, strict mode on.
+  index.html                Vite entry HTML, loads src/main.tsx.
+  vite.config.ts             Vite build config; dev server pinned to port 1420.
+  vitest.config.ts           Frontend unit test config (jsdom environment).
+  playwright.config.ts        End-to-end test config; runs against the dev server.
+  eslint.config.js            ESLint flat config for TypeScript/React.
+  .prettierrc                Prettier formatting rules.
+  .gitignore                 Ignored build output (node_modules, target, dist).
 
 .github/
   workflows/
@@ -32,6 +40,7 @@ docs/
 src/                                  Frontend: TypeScript + React, bundled with Vite.
   main.tsx                             App entry point.
   App.tsx                              Root component, split-pane layout.
+  App.test.tsx                          Vitest smoke test for the root component.
   editors/
     LatexEditor.tsx                     CodeMirror 6 instance for the LaTeX pane. Okabe-Ito theme.
     DocxEditor.tsx                       ProseMirror/Tiptap instance for the DOCX pane.
@@ -46,9 +55,15 @@ src/                                  Frontend: TypeScript + React, bundled with
 
 src-tauri/                                        Backend: Rust, Tauri app shell.
   Cargo.toml                                        Rust dependencies. No network-capable crates permitted, see docs/conventions.md.
+  Cargo.lock                                         Locked Rust dependency tree, committed for reproducible builds.
   tauri.conf.json                                     Tauri app config. No network/http capability scope granted.
+  build.rs                                            Tauri build script (embeds config and assets).
+  icons/                                              App icons in all platform formats, generated from one source image via `npx tauri icon`.
+  capabilities/
+    default.json                                       Capability granted to the main window: core:default only, no HTTP scope.
   src/
-    main.rs                                            App bootstrap, window setup.
+    main.rs                                            App bootstrap entry point; calls tessera_lib::run().
+    lib.rs                                             Library crate root: wires core/ and commands/ modules, runs Tauri.
     commands/                                           Thin Tauri command handlers (IPC surface only).
       mod.rs
       document.rs                                         open_project, new_project, parse_latex, apply_docx_edit, save_project.

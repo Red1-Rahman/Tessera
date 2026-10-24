@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Capability for the main window. Only core shell permissions: no HTTP, no network scope of any kind, per docs/conventions.md, 'Network ban'.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
