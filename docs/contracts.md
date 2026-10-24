@@ -15,6 +15,17 @@ directly from untrusted fields. This is the Rust equivalent of a Pydantic
 model: validation lives on the type's boundary, not scattered through
 call sites.
 
+In the Rust code, the fields of the struct types in section 1 are
+private and are read through accessor methods, so no code path can
+bypass a validating constructor with a struct literal. The JSON shape
+produced and consumed across IPC is exactly as shown in this document;
+restricting field visibility changes only Rust-level constructibility,
+never the wire format. Enum variant fields (the `Block` and `Inline`
+variants) stay public because Rust enums cannot have private variant
+fields; producers must use the constructors listed under "Constructors"
+in section 1, and any value arriving from a frontend payload is
+re-validated at the deserialization site in the command layer.
+
 ## 1. The Document Model (DM)
 
 Defined in `src-tauri/src/core/model.rs`.
@@ -22,34 +33,39 @@ Defined in `src-tauri/src/core/model.rs`.
 ```rust
 /// A single Tessera document, the shared intermediate representation
 /// that both the LaTeX pane and the DOCX pane are views of.
+/// Fields are private; use Document::new plus the accessors.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Document {
-    pub version: DocVersion,
-    pub metadata: DocMetadata,
-    pub body: Vec<Block>,
+    version: DocVersion,
+    metadata: DocMetadata,
+    body: Vec<Block>,
 }
 
 /// Monotonically increasing per-session version counter. Used to discard
 /// stale async parse results (see architecture.md, "Sync flow").
+/// The inner value is private; see "Constructors" below.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DocVersion(pub u64);
+#[serde(transparent)]
+pub struct DocVersion(u64);
 
+/// Fields are private; use DocMetadata::new plus the accessors.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct DocMetadata {
-    pub title: Option<String>,
-    pub authors: Vec<Author>,
-    pub date: Option<String>,
+    title: Option<String>,
+    authors: Vec<Author>,
+    date: Option<String>,
     /// LaTeX document class, e.g. "article", "report". Preserved even
     /// though the DOCX pane has no equivalent concept, so round-trip to
     /// LaTeX does not lose it.
-    pub latex_class: Option<String>,
-    pub latex_class_options: Vec<String>,
+    latex_class: Option<String>,
+    latex_class_options: Vec<String>,
 }
 
+/// Fields are private; use Author::new plus name()/affiliation().
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Author {
-    pub name: String,
-    pub affiliation: Option<String>,
+    name: String,
+    affiliation: Option<String>,
 }
 
 /// A block-level node. This is the backbone of the document tree.
@@ -75,49 +91,54 @@ pub enum HeadingLevel { H1, H2, H3, H4, H5, H6 }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ListKind { Ordered, Unordered }
 
+/// Fields are private; use Table::new plus the accessors.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Table {
-    pub rows: Vec<Vec<TableCell>>,
-    pub caption: Option<Vec<Inline>>,
-    pub label: Option<String>,
+    rows: Vec<Vec<TableCell>>,
+    caption: Option<Vec<Inline>>,
+    label: Option<String>,
 }
 
+/// Fields are private; use TableCell::new plus the accessors.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TableCell {
-    pub blocks: Vec<Block>,
-    pub col_span: u32,
-    pub row_span: u32,
+    blocks: Vec<Block>,
+    col_span: u32,
+    row_span: u32,
 }
 
+/// Fields are private; use Figure::new plus the accessors.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Figure {
     /// Path relative to the project's .tessera/assets directory.
-    pub asset_path: String,
-    pub caption: Option<Vec<Inline>>,
-    pub label: Option<String>,
-    pub width_percent: Option<f32>,
+    asset_path: String,
+    caption: Option<Vec<Inline>>,
+    label: Option<String>,
+    width_percent: Option<f32>,
 }
 
+/// Fields are private; use Equation::new plus the accessors.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Equation {
     /// Always stored as LaTeX math source, the DM's canonical math
     /// representation regardless of which pane produced it.
-    pub latex_source: String,
-    pub display_mode: bool,
-    pub label: Option<String>,
+    latex_source: String,
+    display_mode: bool,
+    label: Option<String>,
 }
 
 /// Content that round-trips losslessly through its origin format but has
 /// no first-class DM representation. Rendered as a clearly marked,
 /// non-editable block in the pane that did not produce it.
+/// Fields are private; use OpaqueBlock::new plus the accessors.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct OpaqueBlock {
-    pub origin: OpaqueOrigin,
+    origin: OpaqueOrigin,
     /// Raw bytes/text in the origin format, preserved verbatim.
-    pub raw: String,
+    raw: String,
     /// Short human-readable description shown in the UI, e.g.
     /// "Raw TeX macro: \customcmd".
-    pub summary: String,
+    summary: String,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -140,6 +161,38 @@ pub enum Inline {
 }
 ```
 
+### Constructors
+
+Every section 1 type that can be built from untrusted input is
+constructed only through these functions, all in
+`src-tauri/src/core/model.rs`, each returning `Result<T,
+TesseraError>` with a `ValidationError` naming the offending field. The
+"rejects" column is what the validation enforces beyond the type shape.
+
+| Type | Constructor | Rejects |
+|---|---|---|
+| `Document` | `Document::new(metadata, body)` | (no field-level rules; version is always `DocVersion::first()`) |
+| `DocMetadata` | `DocMetadata::new(...)` | empty `title`/`date`/`latex_class` when present; empty class option |
+| `Author` | `Author::new(name, affiliation)` | empty/whitespace `name`; empty `affiliation` when present |
+| `Block` | `Block::heading`, `Block::paragraph`, `Block::list`, `Block::table`, `Block::figure`, `Block::equation`, `Block::code_block`, `Block::quote`, `Block::opaque` | invalid heading `label`; empty `language` when present |
+| `Table` | `Table::new(rows, caption, label)` | invalid `label` |
+| `TableCell` | `TableCell::new(blocks, col_span, row_span)` | `col_span` or `row_span` of 0 |
+| `Figure` | `Figure::new(asset_path, caption, label, width_percent)` | empty `asset_path`; absolute path or `..` traversal; `width_percent` outside (0, 100] or non-finite; invalid `label` |
+| `Equation` | `Equation::new(latex_source, display_mode, label)` | empty `latex_source`; invalid `label` |
+| `OpaqueBlock` | `OpaqueBlock::new(origin, raw, summary)` | empty `raw`; empty `summary` |
+| `Inline` | `Inline::text`, `Inline::bold`, `Inline::italic`, `Inline::underline`, `Inline::code`, `Inline::citation`, `Inline::cross_ref`, `Inline::footnote`, `Inline::inline_math`, `Inline::line_break` | empty text/code/math; empty citation key list or empty key; invalid `cross_ref` label |
+
+The free function `validate_label(field, label)` implements the shared
+label rule (non-empty after trimming, no embedded whitespace) used by
+every `label` field and by `Inline::CrossRef`; the command layer also
+uses it to re-validate labels arriving from the frontend.
+
+`DocVersion` has no public constructor at all: it starts at
+`DocVersion::first()` and advances only through `DocVersion::next()` (or
+`Document::bump_version()`), so core code cannot hand the frontend a
+version older than one already issued. `DocVersion::value()` exposes the
+raw `u64` for display and logging only.
+
 ### Invariants
 
 - `DocVersion` only increases within a session. The core never issues a
@@ -152,11 +205,24 @@ pub enum Inline {
   shared key used for `Inline::CrossRef`, mirroring LaTeX's `\label`/
   `\ref` pairing so DOCX cross-references map onto it directly.
 
+Implementation note (serial-task02): implementing section 1 required no
+shape changes to the documented types. The only code-level
+restrictions, private fields plus validating constructors and a
+non-constructible `DocVersion`, are described in section 1's intro and
+"Constructors" subsection and do not change any JSON shape.
+
 ## 2. Tauri command surface (Rust to frontend)
 
 Defined in `src-tauri/src/commands/`. Every command returns
 `Result<T, TesseraError>`, serialized as a tagged JSON object so the
 frontend can discriminate without string matching.
+
+`TesseraError`, `Pane`, `SourceSpan`, and `ExportFormat` are defined in
+`src-tauri/src/core/error.rs` and re-exported from
+`src-tauri/src/commands/` for the IPC surface, because `core/` code
+returns `TesseraError` directly and must not depend on `commands/` (see
+`docs/architecture.md`, "Crate and module boundaries"). The wire shapes
+below are unchanged by that placement.
 
 ```rust
 #[derive(Debug, Serialize, Deserialize)]

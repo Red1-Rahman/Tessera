@@ -70,6 +70,7 @@ src-tauri/                                        Backend: Rust, Tauri app shell
       export.rs                                             export (LaTeX, DOCX, PDF, Markdown, plain text, clipboard).
     core/                                                  All conversion/business logic lives here, framework-agnostic.
       mod.rs
+      error.rs                                                TesseraError, Pane, SourceSpan, ExportFormat (docs/contracts.md section 2), re-exported from commands/.
       model.rs                                                Document Model type definitions (docs/contracts.md section 1).
       diff.rs                                                  Document Model diffing for incremental pane updates.
       latex/
@@ -90,6 +91,7 @@ tests/                                                      Top-level integratio
 
 src-tauri/tests/                                           Rust integration tests (kept alongside the crate per Cargo convention).
   contracts.rs                                              Golden-file, round-trip (proptest), and snapshot (insta) tests for docs/contracts.md types.
+  model_tests.rs                                             Document Model validation and serde shape tests (serial-task02).
 
 NOTES FOR AGENTS AND NEW CONTRIBUTORS
 - The Document Model (src-tauri/src/core/model.rs) is the one thing both

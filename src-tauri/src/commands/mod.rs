@@ -10,3 +10,8 @@
 //! call into `core/`, and map results to `Result<T, TesseraError>` (see
 //! `docs/contracts.md`, section 2). Handlers stay free of business logic;
 //! anything more than a few lines belongs in `core/`.
+
+/// The IPC error surface, defined in `core/error` (which cannot depend
+/// on this module) and re-exported here, where `docs/contracts.md`
+/// section 2 documents it.
+pub use crate::core::error::{ExportFormat, Pane, SourceSpan, TesseraError};

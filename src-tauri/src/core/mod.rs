@@ -10,3 +10,11 @@
 //! the build plan, the LaTeX parser/printer, DOCX reader/writer, export
 //! renderers, and diff engine. Nothing in this module may depend on
 //! Tauri, a webview, or the network.
+
+/// Tessera's error surface (`TesseraError` and friends), as shaped in
+/// `docs/contracts.md`, section 2. Defined here rather than in
+/// `commands/` so `core/` can return it without depending on the IPC
+/// layer; `commands/` re-exports it.
+pub mod error;
+/// The Document Model types (`docs/contracts.md`, section 1).
+pub mod model;
