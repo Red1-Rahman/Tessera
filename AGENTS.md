@@ -22,6 +22,11 @@ changes.
    find where something lives without reading all of `docs/architecture.md`
    again.
 
+Then read the newest entry in `.agents/handoff.md` for state left by
+the previous session: environment or toolchain changes, decisions and
+their rationale, unverified items, and work deliberately left for a
+human.
+
 Task-specific instructions live in `.agents/prompts/`. Reusable,
 cross-task standards live in `.agents/skills/`. Load the ones relevant to
 your current task; you do not need to read every file in both directories
@@ -117,3 +122,10 @@ not.
   contract-change discipline, cross-platform build awareness, frontend
   design decisions for the split-pane editor). These apply continuously
   across every task in `.agents/tasks/`, not just one.
+- `.agents/handoff.md` is the running session log. At the end of a
+  session, add a new entry at the top of that file if the next agent
+  needs to know something that the code, `docs/`, and the commit
+  messages do not already say: machine or toolchain changes, decisions
+  and their rationale, anything not verified locally, and work left for
+  a human. Skip the entry when the commits explain everything; the file
+  follows the format described in its own introduction.
