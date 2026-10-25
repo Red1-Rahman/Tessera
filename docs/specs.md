@@ -44,6 +44,10 @@ DOCX mapping in both directions.
 and map to `H1`, shifting `\section` down to `H2` accordingly for that
 document; the DOCX pane reflects the same shift.
 
+The remaining lower sectioning commands follow the same class hierarchy:
+`\paragraph` maps to `H4` in `article` and `H5` in `report`/`book`, while
+`\subparagraph` maps to `H5` in `article` and `H6` in `report`/`book`.
+
 ### 1.4 Text formatting
 
 | LaTeX | DM node |
@@ -59,9 +63,9 @@ Nested formatting (bold inside italic, etc.) is supported to arbitrary
 depth since `Inline` variants are recursive.
 
 When multiple supported spellings map to one inline node, LaTeX output
-uses `\\textbf`, `\\textit`, and `\\underline` for bold, italic, and
-underline. Inline code uses `\\verb` when a safe delimiter is available
-and `\\texttt` otherwise. These canonical spellings keep printer output
+uses `\textbf`, `\textit`, and `\underline` for bold, italic, and
+underline. Inline code uses `\verb` when a safe delimiter is available
+and `\texttt` otherwise. These canonical spellings keep printer output
 stable while the parser continues to accept the alternatives above.
 
 ### 1.5 Lists

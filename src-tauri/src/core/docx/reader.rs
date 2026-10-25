@@ -25,13 +25,15 @@ use crate::core::model::{
     TableCell,
 };
 
+const MAX_DOCX_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
+
 /// Result of reading a DOCX, including media bytes which the project storage
 /// layer can copy into `.tessera/assets`.
 #[derive(Debug)]
 pub struct DocxReadResult {
     /// The semantic document tree.
     pub document: Document,
-    /// Media keyed by the relative `word/media/...` reference used by figures.
+    /// Media keyed by the `Figure::asset_path` value, such as `media/image1.png`.
     pub assets: HashMap<String, Vec<u8>>,
 }
 
@@ -44,6 +46,18 @@ pub fn read_docx(bytes: &[u8]) -> Result<Document, TesseraError> {
 pub fn read_docx_with_assets(bytes: &[u8]) -> Result<DocxReadResult, TesseraError> {
     let mut archive = ZipArchive::new(Cursor::new(bytes))
         .map_err(|e| parse_error(format!("invalid DOCX zip archive: {e}")))?;
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index(index)
+            .map_err(|e| parse_error(format!("cannot inspect DOCX entry: {e}")))?;
+        if entry.size() > MAX_DOCX_ENTRY_BYTES {
+            return Err(parse_error(format!(
+                "DOCX entry {} exceeds the {} byte limit",
+                entry.name(),
+                MAX_DOCX_ENTRY_BYTES
+            )));
+        }
+    }
     let document_xml = read_part(&mut archive, "word/document.xml")?;
     let styles_xml = read_optional_part(&mut archive, "word/styles.xml")?;
     let rels_xml = read_optional_part(&mut archive, "word/_rels/document.xml.rels")?;
@@ -53,7 +67,7 @@ pub fn read_docx_with_assets(bytes: &[u8]) -> Result<DocxReadResult, TesseraErro
     let mut assets = HashMap::new();
     for path in media_refs {
         if let Ok(data) = read_part(&mut archive, &format!("word/{path}")) {
-            assets.insert(format!("word/{path}"), data);
+            assets.insert(path, data);
         }
     }
     let metadata = DocMetadata::new(None, Vec::new(), None, None, Vec::new())?;
@@ -75,13 +89,10 @@ fn read_part<R: Read + std::io::Seek>(
     archive: &mut ZipArchive<R>,
     name: &str,
 ) -> Result<Vec<u8>, TesseraError> {
-    let mut file = archive
+    let file = archive
         .by_name(name)
         .map_err(|e| parse_error(format!("missing DOCX part {name}: {e}")))?;
-    let mut bytes = Vec::new();
-    file.read_to_end(&mut bytes)
-        .map_err(|e| parse_error(format!("cannot read {name}: {e}")))?;
-    Ok(bytes)
+    read_limited(file, name)
 }
 
 fn read_optional_part<R: Read + std::io::Seek>(
@@ -89,14 +100,27 @@ fn read_optional_part<R: Read + std::io::Seek>(
     name: &str,
 ) -> Result<Option<Vec<u8>>, TesseraError> {
     match archive.by_name(name) {
-        Ok(mut file) => {
-            let mut bytes = Vec::new();
-            file.read_to_end(&mut bytes)
-                .map_err(|e| parse_error(format!("cannot read {name}: {e}")))?;
-            Ok(Some(bytes))
-        }
+        Ok(file) => Ok(Some(read_limited(file, name)?)),
         Err(_) => Ok(None),
     }
+}
+
+fn read_limited(reader: impl Read, name: &str) -> Result<Vec<u8>, TesseraError> {
+    read_limited_to(reader, name, MAX_DOCX_ENTRY_BYTES)
+}
+
+fn read_limited_to(reader: impl Read, name: &str, limit: u64) -> Result<Vec<u8>, TesseraError> {
+    let mut bytes = Vec::new();
+    reader
+        .take(limit + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| parse_error(format!("cannot read {name}: {e}")))?;
+    if bytes.len() as u64 > limit {
+        return Err(parse_error(format!(
+            "DOCX entry {name} exceeds the {limit} byte limit"
+        )));
+    }
+    Ok(bytes)
 }
 
 fn attr<'a>(start: &'a BytesStart<'a>, name: &[u8]) -> Option<String> {
@@ -144,8 +168,11 @@ fn parse_styles(xml: Option<&[u8]>) -> Result<HashMap<String, String>, TesseraEr
 
 fn normalize_style_name(name: &str) -> String {
     let trimmed = name.trim();
-    if trimmed.len() >= 7 && trimmed[..7].eq_ignore_ascii_case("heading") {
-        let suffix = trimmed[7..].trim();
+    if trimmed
+        .get(..7)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("heading"))
+    {
+        let suffix = trimmed.get(7..).unwrap_or_default().trim();
         if matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6") {
             return format!("Heading {suffix}");
         }
@@ -202,7 +229,7 @@ fn parse_document(
             .map_err(|e| parse_error(e.to_string()))?
         {
             Event::Start(e) if local_name(e.name().as_ref()) == b"p" => {
-                let (block, refs) = parse_paragraph(&mut reader, styles, relationships)?;
+                let (block, refs) = parse_paragraph(&mut reader, e, styles, relationships)?;
                 body.push(block);
                 media.extend(refs);
             }
@@ -228,10 +255,14 @@ fn parse_document(
 
 fn parse_paragraph(
     reader: &mut Reader<&[u8]>,
+    start: BytesStart<'_>,
     styles: &HashMap<String, String>,
     relationships: &HashMap<String, String>,
 ) -> Result<(Block, Vec<String>), TesseraError> {
-    let mut xml = Vec::new();
+    let mut xml_writer = quick_xml::Writer::new(Vec::new());
+    xml_writer
+        .write_event(Event::Start(start.into_owned()))
+        .map_err(|e| parse_error(e.to_string()))?;
     let mut depth = 1usize;
     let mut buf = Vec::new();
     let mut style = None;
@@ -239,15 +270,17 @@ fn parse_paragraph(
     let mut text = String::new();
     let mut refs = Vec::new();
     loop {
-        match reader
+        let event = reader
             .read_event_into(&mut buf)
-            .map_err(|e| parse_error(e.to_string()))?
-        {
+            .map_err(|e| parse_error(e.to_string()))?;
+        let end_paragraph =
+            matches!(&event, Event::End(e) if local_name(e.name().as_ref()) == b"p" && depth == 1);
+        match &event {
             Event::Start(e) => {
                 let qname = e.name();
                 let n = local_name(qname.as_ref());
                 if n == b"pStyle" {
-                    style = attr(&e, b"w:val");
+                    style = attr(e, b"w:val");
                 } else if matches!(
                     n,
                     b"ins"
@@ -259,20 +292,19 @@ fn parse_paragraph(
                 ) {
                     has_unsupported = true;
                 } else if n == b"blip" {
-                    if let Some(id) = attr(&e, b"r:embed") {
+                    if let Some(id) = attr(e, b"r:embed") {
                         if let Some(path) = relationships.get(&id) {
                             refs.push(path.clone());
                         }
                     }
                 }
                 depth += 1;
-                xml.extend_from_slice(e.as_ref());
             }
             Event::Empty(e) => {
                 let qname = e.name();
                 let n = local_name(qname.as_ref());
                 if n == b"pStyle" {
-                    style = attr(&e, b"w:val");
+                    style = attr(e, b"w:val");
                 }
                 if n == b"tab" {
                     text.push('\t');
@@ -281,36 +313,41 @@ fn parse_paragraph(
                     text.push('\n');
                 }
                 if n == b"blip" {
-                    if let Some(id) = attr(&e, b"r:embed") {
+                    if let Some(id) = attr(e, b"r:embed") {
                         if let Some(path) = relationships.get(&id) {
                             refs.push(path.clone());
                         }
                     }
                 }
-                xml.extend_from_slice(e.as_ref());
             }
             Event::Text(e) => {
                 let value = e.unescape().map_err(|e| parse_error(e.to_string()))?;
                 text.push_str(&value);
-                xml.extend_from_slice(e.as_ref());
             }
-            Event::End(e) => {
+            Event::End(_) => {
                 depth -= 1;
-                if depth == 0 {
-                    break;
-                }
-                xml.extend_from_slice(e.as_ref());
             }
             Event::Eof => return Err(parse_error("unexpected end of document paragraph".into())),
             _ => {}
         }
+        xml_writer
+            .write_event(event.into_owned())
+            .map_err(|e| parse_error(e.to_string()))?;
+        if end_paragraph {
+            break;
+        }
         buf.clear();
     }
-    let style_name = style
-        .and_then(|id| styles.get(&id).cloned().or_else(|| built_in_style(&id)))
-        .unwrap_or_else(|| "Normal".into());
+    let style_name = match style {
+        Some(id) => styles
+            .get(&id)
+            .cloned()
+            .or_else(|| built_in_style(&id))
+            .unwrap_or_else(|| format!("Unknown style {id}")),
+        None => "Normal".into(),
+    };
     if has_unsupported || !is_supported_style(&style_name) {
-        let raw = String::from_utf8_lossy(&xml).into_owned();
+        let raw = String::from_utf8_lossy(&xml_writer.into_inner()).into_owned();
         return Ok((
             Block::opaque(crate::core::model::OpaqueBlock::new(
                 OpaqueOrigin::Docx,
@@ -334,7 +371,7 @@ fn parse_paragraph(
         )?;
         return Ok((Block::figure(figure), refs));
     }
-    let inline = if xml.windows(5).any(|w| w == b"oMath") {
+    let inline = if xml_writer.get_ref().windows(5).any(|w| w == b"oMath") {
         if text.is_empty() {
             Vec::new()
         } else {
@@ -405,22 +442,33 @@ fn parse_table(reader: &mut Reader<&[u8]>) -> Result<(Table, Vec<String>), Tesse
                 let (parsed_row, refs) = parse_row(reader)?;
                 let row_index = rows.len();
                 let mut row = Vec::new();
+                let mut next_vertical = HashMap::new();
+                let mut updated_cells = std::collections::HashSet::new();
                 let mut column = 0usize;
-                for (cell, continuation) in parsed_row {
-                    if continuation {
-                        if let Some(&(old_row, old_cell)) = active_vertical.get(&column) {
-                            let previous = &rows[old_row][old_cell];
-                            rows[old_row][old_cell] = TableCell::new(
-                                previous.blocks().to_vec(),
-                                previous.col_span(),
-                                previous.row_span().saturating_add(1),
-                            )?;
+                for (cell, merge) in parsed_row {
+                    if merge == VerticalMerge::Continue {
+                        let span = cell.col_span() as usize;
+                        for offset in 0..span {
+                            let current_column = column + offset;
+                            if let Some(&(old_row, old_cell)) = active_vertical.get(&current_column)
+                            {
+                                if updated_cells.insert((old_row, old_cell)) {
+                                    let previous = &rows[old_row][old_cell];
+                                    rows[old_row][old_cell] = TableCell::new(
+                                        previous.blocks().to_vec(),
+                                        previous.col_span(),
+                                        previous.row_span().saturating_add(1),
+                                    )?;
+                                }
+                                next_vertical.insert(current_column, (old_row, old_cell));
+                            }
                         }
+                        column += span;
                     } else {
                         let span = cell.col_span() as usize;
-                        if cell.row_span() == 1 {
+                        if merge == VerticalMerge::Restart {
                             for offset in 0..span {
-                                active_vertical.insert(column + offset, (row_index, row.len()));
+                                next_vertical.insert(column + offset, (row_index, row.len()));
                             }
                         }
                         column += span;
@@ -428,6 +476,7 @@ fn parse_table(reader: &mut Reader<&[u8]>) -> Result<(Table, Vec<String>), Tesse
                     }
                 }
                 rows.push(row);
+                active_vertical = next_vertical;
                 media.extend(refs);
             }
             Event::End(e) if local_name(e.name().as_ref()) == b"tbl" => break,
@@ -439,7 +488,14 @@ fn parse_table(reader: &mut Reader<&[u8]>) -> Result<(Table, Vec<String>), Tesse
     Ok((Table::new(rows, None, None)?, media))
 }
 
-type ParsedCell = (TableCell, bool);
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum VerticalMerge {
+    None,
+    Restart,
+    Continue,
+}
+
+type ParsedCell = (TableCell, VerticalMerge);
 
 fn parse_row(reader: &mut Reader<&[u8]>) -> Result<(Vec<ParsedCell>, Vec<String>), TesseraError> {
     let mut cells = Vec::new();
@@ -451,8 +507,8 @@ fn parse_row(reader: &mut Reader<&[u8]>) -> Result<(Vec<ParsedCell>, Vec<String>
             .map_err(|e| parse_error(e.to_string()))?
         {
             Event::Start(e) if local_name(e.name().as_ref()) == b"tc" => {
-                let (cell, continuation, refs) = parse_cell(reader)?;
-                cells.push((cell, continuation));
+                let (cell, merge, refs) = parse_cell(reader)?;
+                cells.push((cell, merge));
                 media.extend(refs);
             }
             Event::End(e) if local_name(e.name().as_ref()) == b"tr" => break,
@@ -464,11 +520,13 @@ fn parse_row(reader: &mut Reader<&[u8]>) -> Result<(Vec<ParsedCell>, Vec<String>
     Ok((cells, media))
 }
 
-fn parse_cell(reader: &mut Reader<&[u8]>) -> Result<(TableCell, bool, Vec<String>), TesseraError> {
+fn parse_cell(
+    reader: &mut Reader<&[u8]>,
+) -> Result<(TableCell, VerticalMerge, Vec<String>), TesseraError> {
     let mut text = String::new();
     let mut col_span = 1;
     let row_span = 1;
-    let mut continuation = false;
+    let mut merge = VerticalMerge::None;
     let mut buf = Vec::new();
     loop {
         match reader
@@ -482,7 +540,11 @@ fn parse_cell(reader: &mut Reader<&[u8]>) -> Result<(TableCell, bool, Vec<String
                     col_span = attr(&e, b"w:val").and_then(|v| v.parse().ok()).unwrap_or(1);
                 }
                 if n == b"vMerge" {
-                    continuation = attr(&e, b"w:val").as_deref() != Some("restart");
+                    merge = if attr(&e, b"w:val").as_deref() == Some("restart") {
+                        VerticalMerge::Restart
+                    } else {
+                        VerticalMerge::Continue
+                    };
                 }
             }
             Event::Empty(e) => {
@@ -492,7 +554,11 @@ fn parse_cell(reader: &mut Reader<&[u8]>) -> Result<(TableCell, bool, Vec<String
                     col_span = attr(&e, b"w:val").and_then(|v| v.parse().ok()).unwrap_or(1);
                 }
                 if n == b"vMerge" {
-                    continuation = attr(&e, b"w:val").as_deref() != Some("restart");
+                    merge = if attr(&e, b"w:val").as_deref() == Some("restart") {
+                        VerticalMerge::Restart
+                    } else {
+                        VerticalMerge::Continue
+                    };
                 }
             }
             Event::Text(e) => text.push_str(&e.unescape().map_err(|x| parse_error(x.to_string()))?),
@@ -509,7 +575,7 @@ fn parse_cell(reader: &mut Reader<&[u8]>) -> Result<(TableCell, bool, Vec<String
     };
     Ok((
         TableCell::new(blocks, col_span, row_span)?,
-        continuation,
+        merge,
         Vec::new(),
     ))
 }
@@ -569,5 +635,45 @@ mod tests {
         let bytes = std::fs::read(path).expect("reader fixture");
         let result = read_docx_with_assets(&bytes).expect("valid fixture");
         assert!(!result.document.body().is_empty());
+    }
+
+    #[test]
+    fn opaque_paragraph_preserves_outer_xml_tags() {
+        let xml = br#"<w:document xmlns:w="urn:test"><w:body><w:p w:rsidR="1"><w:pPr><w:pStyle w:val="CustomStyle"/></w:pPr><w:r><w:t>keep</w:t></w:r></w:p></w:body></w:document>"#;
+        let (blocks, _) = parse_document(xml, &HashMap::new(), &HashMap::new()).expect("parse");
+        let Block::Opaque(value) = &blocks[0] else {
+            panic!("opaque block")
+        };
+        assert!(value.raw().starts_with("<w:p w:rsidR=\"1\">"));
+        assert!(value.raw().ends_with("</w:p>"));
+    }
+
+    #[test]
+    fn vertical_merge_continuations_advance_the_grid_column() {
+        let xml = br#"<w:tbl><w:tr><w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p><w:r><w:t>A</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>B</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc><w:tc><w:p><w:r><w:t>C</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"#;
+        let mut reader = Reader::from_reader(xml.as_slice());
+        let mut buffer = Vec::new();
+        let _ = reader.read_event_into(&mut buffer).expect("table start");
+        let (table, _) = parse_table(&mut reader).expect("table");
+        assert_eq!(table.rows()[0][0].row_span(), 2);
+        assert_eq!(table.rows()[1][0].blocks().len(), 1);
+        assert_eq!(
+            table.rows()[1][0].blocks()[0],
+            Block::paragraph(vec![Inline::text("C".into()).expect("text")])
+        );
+    }
+
+    #[test]
+    fn archive_entry_reads_stop_at_the_configured_limit() {
+        assert!(read_limited_to(Cursor::new(b"1234"), "test", 3).is_err());
+        assert_eq!(
+            read_limited_to(Cursor::new(b"123"), "test", 3).expect("bounded"),
+            b"123"
+        );
+    }
+
+    #[test]
+    fn non_ascii_heading_style_names_do_not_panic() {
+        assert_eq!(normalize_style_name("標題"), "標題");
     }
 }

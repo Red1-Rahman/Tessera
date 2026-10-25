@@ -30,16 +30,24 @@ pub fn print(document: &Document) -> String {
     if document.metadata().title().is_some() {
         out.push_str("\\maketitle\n");
     }
+    let class = document.metadata().latex_class().unwrap_or("article");
     for (index, block) in document.body().iter().enumerate() {
         if index > 0 {
             out.push('\n');
         }
-        print_block(block, &mut out, 0);
+        print_block(block, &mut out, 0, class);
         if !out.ends_with('\n') {
             out.push('\n');
         }
     }
-    out.push_str(document.trailing_trivia());
+    let trailing = document.trailing_trivia();
+    if out.ends_with('\n') && trailing.starts_with("\r\n") {
+        out.push_str(&trailing[2..]);
+    } else if out.ends_with('\n') && trailing.starts_with('\n') {
+        out.push_str(&trailing[1..]);
+    } else {
+        out.push_str(trailing);
+    }
     out.push_str("\\end{document}\n");
     out
 }
@@ -66,8 +74,15 @@ fn print_preamble(metadata: &DocMetadata, out: &mut String) {
     if let Some(title) = metadata.title() {
         write_command_arg(out, "title", title);
     }
-    for author in metadata.authors() {
-        print_author(author, out);
+    if !metadata.authors().is_empty() {
+        out.push_str("\\author{");
+        for (index, author) in metadata.authors().iter().enumerate() {
+            if index > 0 {
+                out.push_str("\\and ");
+            }
+            print_author(author, out);
+        }
+        out.push_str("}\n");
     }
     if let Some(date) = metadata.date() {
         write_command_arg(out, "date", date);
@@ -81,20 +96,18 @@ fn print_preamble(metadata: &DocMetadata, out: &mut String) {
 }
 
 fn print_author(author: &Author, out: &mut String) {
-    out.push_str("\\author{");
     out.push_str(&escape_text(author.name()));
     if let Some(affiliation) = author.affiliation() {
         out.push_str("\\\\");
         out.push_str(&escape_text(affiliation));
     }
-    out.push_str("}\n");
 }
 
 fn write_command_arg(out: &mut String, command: &str, value: &str) {
     let _ = writeln!(out, "\\{command}{{{}}}", escape_text(value));
 }
 
-fn print_block(block: &Block, out: &mut String, indent: usize) {
+fn print_block(block: &Block, out: &mut String, indent: usize, class: &str) {
     if let Some(trivia) = block.trivia() {
         out.push_str(&trivia.leading);
     }
@@ -106,7 +119,7 @@ fn print_block(block: &Block, out: &mut String, indent: usize) {
             ..
         } => {
             indent_line(out, indent);
-            let _ = write!(out, "\\{}{{", heading_command(*level));
+            let _ = write!(out, "\\{}{{", heading_command(*level, class));
             print_inlines(inline, out);
             out.push('}');
             print_label(label.as_deref(), out);
@@ -115,8 +128,8 @@ fn print_block(block: &Block, out: &mut String, indent: usize) {
             indent_line(out, indent);
             print_inlines(inline, out);
         }
-        Block::List { kind, items, .. } => print_list(*kind, items, out, indent),
-        Block::Table(table) => print_table(table, out, indent),
+        Block::List { kind, items, .. } => print_list(*kind, items, out, indent, class),
+        Block::Table(table) => print_table(table, out, indent, class),
         Block::Figure(figure) => print_figure(figure, out, indent),
         Block::Equation(equation) => print_equation(equation, out, indent),
         Block::CodeBlock { language, text, .. } => {
@@ -144,7 +157,7 @@ fn print_block(block: &Block, out: &mut String, indent: usize) {
         Block::Quote { blocks, .. } => {
             indent_line(out, indent);
             out.push_str("\\begin{quote}\n");
-            print_blocks(blocks, out, indent + 1);
+            print_blocks(blocks, out, indent + 1, class);
             indent_line(out, indent);
             out.push_str("\\end{quote}");
         }
@@ -159,19 +172,19 @@ fn print_block(block: &Block, out: &mut String, indent: usize) {
     }
 }
 
-fn print_blocks(blocks: &[Block], out: &mut String, indent: usize) {
+fn print_blocks(blocks: &[Block], out: &mut String, indent: usize, class: &str) {
     for (index, block) in blocks.iter().enumerate() {
         if index > 0 {
             out.push('\n');
         }
-        print_block(block, out, indent);
+        print_block(block, out, indent, class);
         if !out.ends_with('\n') {
             out.push('\n');
         }
     }
 }
 
-fn print_list(kind: ListKind, items: &[Vec<Block>], out: &mut String, indent: usize) {
+fn print_list(kind: ListKind, items: &[Vec<Block>], out: &mut String, indent: usize, class: &str) {
     indent_line(out, indent);
     let environment = match kind {
         ListKind::Ordered => "enumerate",
@@ -185,10 +198,10 @@ fn print_list(kind: ListKind, items: &[Vec<Block>], out: &mut String, indent: us
         indent_line(out, indent + 1);
         out.push_str("\\item ");
         if let Some((first, rest)) = item.split_first() {
-            print_block(first, out, 0);
+            print_block(first, out, 0, class);
             for block in rest {
                 out.push('\n');
-                print_block(block, out, indent + 2);
+                print_block(block, out, indent + 2, class);
             }
         }
         out.push('\n');
@@ -197,7 +210,7 @@ fn print_list(kind: ListKind, items: &[Vec<Block>], out: &mut String, indent: us
     let _ = write!(out, "\\end{{{environment}}}");
 }
 
-fn print_table(table: &Table, out: &mut String, indent: usize) {
+fn print_table(table: &Table, out: &mut String, indent: usize, class: &str) {
     out.push_str(table.leading_trivia());
     indent_line(out, indent);
     out.push_str("\\begin{table}\n");
@@ -236,7 +249,7 @@ fn print_table(table: &Table, out: &mut String, indent: usize) {
             if cell_index > 0 {
                 out.push_str(" & ");
             }
-            print_cell(cell, out);
+            print_cell(cell, out, class);
         }
         out.push_str(" \\\\");
         if let Some(style) = table.latex_style() {
@@ -265,26 +278,26 @@ fn print_table(table: &Table, out: &mut String, indent: usize) {
     out.push_str("\\end{table}");
 }
 
-fn print_cell(cell: &TableCell, out: &mut String) {
+fn print_cell(cell: &TableCell, out: &mut String, class: &str) {
     if cell.col_span() > 1 {
         let _ = write!(out, "\\multicolumn{{{}}}{{l}}{{", cell.col_span());
-        print_cell_contents(cell, out);
+        print_cell_contents(cell, out, class);
         out.push('}');
     } else if cell.row_span() > 1 {
         let _ = write!(out, "\\multirow{{{}}}{{*}}{{", cell.row_span());
-        print_cell_contents(cell, out);
+        print_cell_contents(cell, out, class);
         out.push('}');
     } else {
-        print_cell_contents(cell, out);
+        print_cell_contents(cell, out, class);
     }
 }
 
-fn print_cell_contents(cell: &TableCell, out: &mut String) {
+fn print_cell_contents(cell: &TableCell, out: &mut String, class: &str) {
     for (index, block) in cell.blocks().iter().enumerate() {
         if index > 0 {
             out.push_str("\\par ");
         }
-        print_block(block, out, 0);
+        print_block(block, out, 0, class);
     }
 }
 
@@ -295,7 +308,7 @@ fn print_figure(figure: &Figure, out: &mut String, indent: usize) {
     indent_line(out, indent + 1);
     out.push_str("\\includegraphics");
     if let Some(width) = figure.width_percent() {
-        let _ = write!(out, "[width={width:.2}\\%\\textwidth]");
+        let _ = write!(out, "[width={:.4}\\textwidth]", width / 100.0);
     }
     let _ = writeln!(out, "{{{}}}", escape_path(figure.asset_path()));
     if let Some(caption) = figure.caption() {
@@ -376,14 +389,20 @@ fn print_verbatim_inline(text: &str, out: &mut String) {
     );
 }
 
-fn heading_command(level: HeadingLevel) -> &'static str {
-    match level {
-        HeadingLevel::H1 => "section",
-        HeadingLevel::H2 => "subsection",
-        HeadingLevel::H3 => "subsubsection",
-        HeadingLevel::H4 => "paragraph",
-        HeadingLevel::H5 => "subparagraph",
-        HeadingLevel::H6 => "subparagraph",
+fn heading_command(level: HeadingLevel, class: &str) -> &'static str {
+    match (level, matches!(class, "report" | "book")) {
+        (HeadingLevel::H1, true) => "chapter",
+        (HeadingLevel::H1, false) => "section",
+        (HeadingLevel::H2, true) => "section",
+        (HeadingLevel::H2, false) => "subsection",
+        (HeadingLevel::H3, true) => "subsection",
+        (HeadingLevel::H3, false) => "subsubsection",
+        (HeadingLevel::H4, true) => "subsubsection",
+        (HeadingLevel::H4, false) => "paragraph",
+        (HeadingLevel::H5, true) => "paragraph",
+        (HeadingLevel::H5, false) => "subparagraph",
+        (HeadingLevel::H6, true) => "subparagraph",
+        (HeadingLevel::H6, false) => "subparagraph",
     }
 }
 
@@ -467,5 +486,56 @@ mod tests {
         let output = print(&document);
         assert!(output.contains("\\begin{tabular}{|p{4cm}|r|}"));
         assert!(output.contains("\\toprule"));
+    }
+
+    #[test]
+    fn canonical_fixture_matches_parser_and_printer() {
+        let fixture = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../tests/fixtures/latex/printer-canonical.tex"
+        ));
+        let document = crate::core::latex::parser::parse_latex(fixture).expect("fixture parses");
+        let normalize = |source: &str| {
+            source
+                .replace("\r\n", "\n")
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        assert_eq!(normalize(&print(&document)), normalize(fixture));
+    }
+
+    #[test]
+    fn authors_width_and_heading_depth_print_with_parseable_syntax() {
+        let author_a = crate::core::model::Author::new("Ada".into(), None).expect("author");
+        let author_b = crate::core::model::Author::new("Grace".into(), None).expect("author");
+        let metadata = DocMetadata::new(
+            None,
+            vec![author_a, author_b],
+            None,
+            Some("report".into()),
+            vec![],
+        )
+        .expect("metadata");
+        let figure = Figure::new("plot.png".into(), None, None, Some(50.0)).expect("figure");
+        let document = Document::new(
+            metadata,
+            vec![
+                Block::heading(
+                    HeadingLevel::H6,
+                    vec![Inline::text("Deep".into()).expect("text")],
+                    None,
+                )
+                .expect("heading"),
+                Block::figure(figure),
+            ],
+        );
+        let output = print(&document);
+        assert!(output.contains("\\author{Ada\\and Grace}"));
+        assert!(output.contains("\\subparagraph{Deep}"));
+        assert!(output.contains("width=0.5000\\textwidth"));
+        assert!(crate::core::latex::parser::parse_latex(&output).is_ok());
     }
 }
