@@ -325,9 +325,44 @@ fn block_heading_serializes_with_a_type_tag() {
             "type": "Heading",
             "level": "H2",
             "inline": [{ "type": "Text", "text": "Methods" }],
-            "label": "sec:methods"
+            "label": "sec:methods",
+            "trivia": { "leading": "" }
         })
     );
+}
+
+#[test]
+fn source_trivia_and_latex_table_style_round_trip_through_serde() {
+    let mut block = Block::paragraph(vec![Inline::text("body".into()).expect("text")]);
+    block.trivia_mut().expect("paragraph trivia").leading = "% before\n".into();
+    let mut metadata = DocMetadata::default();
+    metadata.set_preamble_raw(vec!["\\usepackage{booktabs}".into()]);
+    let mut document = Document::new(metadata, vec![block]);
+    document.set_trailing_trivia("% after\n".into());
+
+    let encoded = to_value(&document).expect("serialize document");
+    let decoded: Document = from_value(encoded).expect("deserialize document");
+    assert_eq!(decoded, document);
+    assert_eq!(decoded.trailing_trivia(), "% after\n");
+    assert_eq!(
+        decoded.body()[0].trivia().expect("trivia").leading,
+        "% before\n"
+    );
+    assert_eq!(
+        decoded.metadata().preamble_raw(),
+        ["\\usepackage{booktabs}"]
+    );
+
+    let mut table = Table::new(vec![], None, None).expect("table");
+    table.set_leading_trivia("% tabular\n".into());
+    table.set_latex_style(Some(TableStyle::new(
+        vec!["l".into(), "r".into()],
+        RuleStyle::Booktabs,
+        vec![0, 2],
+    )));
+    let encoded = to_value(&table).expect("serialize table");
+    let decoded: Table = from_value(encoded).expect("deserialize table");
+    assert_eq!(decoded, table);
 }
 
 #[test]

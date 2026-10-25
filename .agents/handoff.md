@@ -21,6 +21,51 @@ history and that file stays rules.
 
 ---
 
+## 2026-10-25: Task 03 recovery and verification
+
+### Schema alignment
+
+- The follow-up's claim that the source-fidelity fields were already in
+  `docs/contracts.md` was not true on disk. The contract and
+  `src-tauri/src/core/model.rs` now both include `Document.trailing_trivia`,
+  `DocMetadata.preamble_raw`, per-block trivia, leading trivia for tables,
+  figures, and equations, `TableStyle`, and `RuleStyle`.
+- New optional fidelity fields default when deserializing older JSON.
+  `src-tauri/tests/model_tests.rs` covers a serde round trip for the new
+  data. Constructors preserve their earlier signatures; setters/accessors
+  manage uninterpreted source strings.
+
+### Task 03 status and verification
+
+- Fixed `src-tauri/src/core/docx/writer.rs`: `io_error` had accidentally
+  been nested inside `zip_error` after the latter's return expression,
+  leaving the closing brace misplaced. Moved `io_error` to module scope.
+- Fixed compile/lint defects in DOCX reader and LaTeX parser code. Added a
+  DOCX package structure test and a LaTeX printer test for `TableStyle`.
+- `cargo check --manifest-path src-tauri/Cargo.toml`, `cargo fmt
+  --manifest-path src-tauri/Cargo.toml --check`, `cargo clippy
+  --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`, and
+  `cargo test --manifest-path src-tauri/Cargo.toml` passed at the final run.
+  The full Rust suite contains six unit tests and 26 model tests; coverage
+  is much narrower than the four task definitions require.
+- `cargo tree --manifest-path src-tauri/Cargo.toml` had no matches for
+  `reqwest`, `hyper`, `ureq`, `tokio-tungstenite`, `isahc`, or `curl`.
+- Neither LibreOffice nor Word was found on PATH. No real-world DOCX was
+  available for visual validation, so Task C and Task D's manual-open
+  checklist items remain unverified.
+- Task A still lacks multi-file provenance and broad construct/error-span
+  tests. Trivia fields now exist, but parser preservation is incomplete for
+  per-block comments and whitespace. Task B uses stored table column specs
+  and rule style, and its LaTeX-origin Opaque test is byte-oriented, but
+  full byte-identical round trips are not established. Task C's vertical
+  merge handling is incomplete and DOCX inline formatting/style coverage
+  needs review. Task D's OOXML has structural test coverage only; unsupported
+  math warnings exist, but OMML conversion is minimal and not visually
+  validated.
+- `docs/contracts.md` was updated to match the explicit schema supplied in
+  the follow-up. `docs/specs.md` now states canonical LaTeX spellings for
+  printer normalization. No files were staged or committed.
+
 ## 2026-10-24: serial-task01 (scaffolding) and serial-task02 (Document Model) complete
 
 ### Environment and dependencies

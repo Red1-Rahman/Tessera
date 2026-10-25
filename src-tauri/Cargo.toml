@@ -32,3 +32,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = [] }
 thiserror = "2"
+# Parser/serialization crates listed in docs/techstack.yml. None of them
+# is network-capable; see docs/conventions.md, "Network ban."
+nom = "7"
+quick-xml = "0.37"
+zip = "2"

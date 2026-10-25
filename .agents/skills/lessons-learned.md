@@ -125,3 +125,6 @@ this file as-is and keep appending to it.
 - Prefer asking over building a workaround when a task appears to
   require something forbidden; the workaround is what becomes expensive
   to unwind.
+- Re-read the exact current target before applying a patch after a long
+  session or after other edits; stale context often makes a plausible
+  patch fail or land against the wrong structure.

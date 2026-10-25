@@ -58,6 +58,12 @@ document; the DOCX pane reflects the same shift.
 Nested formatting (bold inside italic, etc.) is supported to arbitrary
 depth since `Inline` variants are recursive.
 
+When multiple supported spellings map to one inline node, LaTeX output
+uses `\\textbf`, `\\textit`, and `\\underline` for bold, italic, and
+underline. Inline code uses `\\verb` when a safe delimiter is available
+and `\\texttt` otherwise. These canonical spellings keep printer output
+stable while the parser continues to accept the alternatives above.
+
 ### 1.5 Lists
 
 | LaTeX | DM node |

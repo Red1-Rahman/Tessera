@@ -39,6 +39,7 @@ pub struct Document {
     version: DocVersion,
     metadata: DocMetadata,
     body: Vec<Block>,
+    trailing_trivia: String,
 }
 
 /// Monotonically increasing per-session version counter. Used to discard
@@ -59,6 +60,7 @@ pub struct DocMetadata {
     /// LaTeX does not lose it.
     latex_class: Option<String>,
     latex_class_options: Vec<String>,
+    preamble_raw: Vec<String>,
 }
 
 /// Fields are private; use Author::new plus name()/affiliation().
@@ -72,18 +74,21 @@ pub struct Author {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum Block {
-    Heading { level: HeadingLevel, inline: Vec<Inline>, label: Option<String> },
-    Paragraph { inline: Vec<Inline> },
-    List { kind: ListKind, items: Vec<Vec<Block>> },
+    Heading { level: HeadingLevel, inline: Vec<Inline>, label: Option<String>, trivia: BlockTrivia },
+    Paragraph { inline: Vec<Inline>, trivia: BlockTrivia },
+    List { kind: ListKind, items: Vec<Vec<Block>>, trivia: BlockTrivia },
     Table(Table),
     Figure(Figure),
     Equation(Equation),
-    CodeBlock { language: Option<String>, text: String },
-    Quote { blocks: Vec<Block> },
+    CodeBlock { language: Option<String>, text: String, trivia: BlockTrivia },
+    Quote { blocks: Vec<Block>, trivia: BlockTrivia },
     /// Content that only one pane can faithfully represent. See
     /// architecture.md, "Conflict and loss handling".
     Opaque(OpaqueBlock),
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct BlockTrivia { pub leading: String }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum HeadingLevel { H1, H2, H3, H4, H5, H6 }
@@ -97,7 +102,19 @@ pub struct Table {
     rows: Vec<Vec<TableCell>>,
     caption: Option<Vec<Inline>>,
     label: Option<String>,
+    leading_trivia: String,
+    latex_style: Option<TableStyle>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TableStyle {
+    column_specs: Vec<String>,
+    rule_style: RuleStyle,
+    hline_before_rows: Vec<usize>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum RuleStyle { Hline, Booktabs, None }
 
 /// Fields are private; use TableCell::new plus the accessors.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -115,6 +132,7 @@ pub struct Figure {
     caption: Option<Vec<Inline>>,
     label: Option<String>,
     width_percent: Option<f32>,
+    leading_trivia: String,
 }
 
 /// Fields are private; use Equation::new plus the accessors.
@@ -125,6 +143,7 @@ pub struct Equation {
     latex_source: String,
     display_mode: bool,
     label: Option<String>,
+    leading_trivia: String,
 }
 
 /// Content that round-trips losslessly through its origin format but has
@@ -164,6 +183,23 @@ pub enum Inline {
 ```
 
 ### Constructors
+
+### LaTeX source fidelity
+
+The model retains uninterpreted source details so parsing and printing do
+not discard comments or whitespace. `BlockTrivia.leading` stores source
+text immediately before Heading, Paragraph, List, CodeBlock, or Quote
+blocks; Table, Figure, and Equation store `leading_trivia` directly.
+`Document.trailing_trivia` stores text after the final body block, and
+`DocMetadata.preamble_raw` stores unparsed preamble declarations in
+source order. These strings are opaque and must not be normalized.
+`Table.latex_style` stores column specifications and horizontal rule
+information for LaTeX output; it has no DOCX equivalent.
+
+`Block::trivia()` and `Block::trivia_mut()` access trivia for variants
+that carry `BlockTrivia`, returning `None` for Table, Figure, Equation,
+and Opaque. Table formatting is represented by `TableStyle` and
+`RuleStyle` (`Hline`, `Booktabs`, or `None`).
 
 Every section 1 type that can be built from untrusted input is
 constructed only through these functions, all in

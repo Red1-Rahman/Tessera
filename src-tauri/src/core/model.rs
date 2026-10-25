@@ -88,6 +88,8 @@ pub struct Document {
     version: DocVersion,
     metadata: DocMetadata,
     body: Vec<Block>,
+    #[serde(default)]
+    trailing_trivia: String,
 }
 
 impl Document {
@@ -99,6 +101,7 @@ impl Document {
             version: DocVersion::first(),
             metadata,
             body,
+            trailing_trivia: String::new(),
         }
     }
 
@@ -115,6 +118,16 @@ impl Document {
     /// The document body, block order as displayed.
     pub fn body(&self) -> &[Block] {
         &self.body
+    }
+
+    /// Source trivia after the final block, preserved verbatim.
+    pub fn trailing_trivia(&self) -> &str {
+        &self.trailing_trivia
+    }
+
+    /// Replaces trailing source trivia without interpreting it.
+    pub fn set_trailing_trivia(&mut self, trivia: String) {
+        self.trailing_trivia = trivia;
     }
 
     /// Mutable access to the body for the sync engine.
@@ -187,6 +200,8 @@ pub struct DocMetadata {
     date: Option<String>,
     latex_class: Option<String>,
     latex_class_options: Vec<String>,
+    #[serde(default)]
+    preamble_raw: Vec<String>,
 }
 
 impl DocMetadata {
@@ -219,6 +234,7 @@ impl DocMetadata {
             date,
             latex_class,
             latex_class_options,
+            preamble_raw: Vec::new(),
         })
     }
 
@@ -247,6 +263,16 @@ impl DocMetadata {
     /// (see `docs/specs.md`, section 1.1).
     pub fn latex_class_options(&self) -> &[String] {
         &self.latex_class_options
+    }
+
+    /// Uninterpreted LaTeX preamble declarations, preserved in order.
+    pub fn preamble_raw(&self) -> &[String] {
+        &self.preamble_raw
+    }
+
+    /// Sets uninterpreted LaTeX preamble declarations.
+    pub fn set_preamble_raw(&mut self, raw: Vec<String>) {
+        self.preamble_raw = raw;
     }
 }
 
@@ -296,13 +322,19 @@ pub enum Block {
         level: HeadingLevel,
         inline: Vec<Inline>,
         label: Option<String>,
+        #[serde(default)]
+        trivia: BlockTrivia,
     },
     Paragraph {
         inline: Vec<Inline>,
+        #[serde(default)]
+        trivia: BlockTrivia,
     },
     List {
         kind: ListKind,
         items: Vec<Vec<Block>>,
+        #[serde(default)]
+        trivia: BlockTrivia,
     },
     Table(Table),
     Figure(Figure),
@@ -310,9 +342,13 @@ pub enum Block {
     CodeBlock {
         language: Option<String>,
         text: String,
+        #[serde(default)]
+        trivia: BlockTrivia,
     },
     Quote {
         blocks: Vec<Block>,
+        #[serde(default)]
+        trivia: BlockTrivia,
     },
     /// Content that only one pane can faithfully represent. See
     /// `docs/architecture.md`, "Conflict and loss handling".
@@ -320,6 +356,29 @@ pub enum Block {
 }
 
 impl Block {
+    /// Returns the block's uninterpreted leading source trivia.
+    pub fn trivia(&self) -> Option<&BlockTrivia> {
+        match self {
+            Block::Heading { trivia, .. }
+            | Block::Paragraph { trivia, .. }
+            | Block::List { trivia, .. }
+            | Block::CodeBlock { trivia, .. }
+            | Block::Quote { trivia, .. } => Some(trivia),
+            _ => None,
+        }
+    }
+
+    /// Mutably accesses leading source trivia where the variant carries it.
+    pub fn trivia_mut(&mut self) -> Option<&mut BlockTrivia> {
+        match self {
+            Block::Heading { trivia, .. }
+            | Block::Paragraph { trivia, .. }
+            | Block::List { trivia, .. }
+            | Block::CodeBlock { trivia, .. }
+            | Block::Quote { trivia, .. } => Some(trivia),
+            _ => None,
+        }
+    }
     /// Builds a heading, validating its optional cross-reference label.
     pub fn heading(
         level: HeadingLevel,
@@ -334,18 +393,26 @@ impl Block {
             level,
             inline,
             label,
+            trivia: BlockTrivia::default(),
         })
     }
 
     /// Builds a paragraph.
     pub fn paragraph(inline: Vec<Inline>) -> Self {
-        Block::Paragraph { inline }
+        Block::Paragraph {
+            inline,
+            trivia: BlockTrivia::default(),
+        }
     }
 
     /// Builds a list. Items are full block lists so nesting can be
     /// expressed with another `Block::List` inside an item.
     pub fn list(kind: ListKind, items: Vec<Vec<Block>>) -> Self {
-        Block::List { kind, items }
+        Block::List {
+            kind,
+            items,
+            trivia: BlockTrivia::default(),
+        }
     }
 
     /// Builds a table block from an already-validated [`Table`].
@@ -367,12 +434,19 @@ impl Block {
     /// non-empty after trimming.
     pub fn code_block(language: Option<String>, text: String) -> Result<Self, TesseraError> {
         let language = validate_optional_text("code_block.language", language)?;
-        Ok(Block::CodeBlock { language, text })
+        Ok(Block::CodeBlock {
+            language,
+            text,
+            trivia: BlockTrivia::default(),
+        })
     }
 
     /// Builds a block quote wrapping arbitrary block content.
     pub fn quote(blocks: Vec<Block>) -> Self {
-        Block::Quote { blocks }
+        Block::Quote {
+            blocks,
+            trivia: BlockTrivia::default(),
+        }
     }
 
     /// Wraps one-pane-only content in an [`OpaqueBlock`], the DM's
@@ -393,6 +467,12 @@ impl Block {
             _ => None,
         }
     }
+}
+
+/// Uninterpreted source text immediately preceding a block.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct BlockTrivia {
+    pub leading: String,
 }
 
 /// Heading depth, from the sectioning command found in the source (see
@@ -435,6 +515,10 @@ pub struct Table {
     rows: Vec<Vec<TableCell>>,
     caption: Option<Vec<Inline>>,
     label: Option<String>,
+    #[serde(default)]
+    leading_trivia: String,
+    #[serde(default)]
+    latex_style: Option<TableStyle>,
 }
 
 impl Table {
@@ -454,6 +538,8 @@ impl Table {
             rows,
             caption,
             label,
+            leading_trivia: String::new(),
+            latex_style: None,
         })
     }
 
@@ -471,6 +557,73 @@ impl Table {
     pub fn label(&self) -> Option<&str> {
         self.label.as_deref()
     }
+
+    /// Source text immediately preceding this table.
+    pub fn leading_trivia(&self) -> &str {
+        &self.leading_trivia
+    }
+    /// Returns the LaTeX column and rule information, when available.
+    pub fn latex_style(&self) -> Option<&TableStyle> {
+        self.latex_style.as_ref()
+    }
+    /// Sets uninterpreted source trivia preceding this table.
+    pub fn set_leading_trivia(&mut self, value: String) {
+        self.leading_trivia = value;
+    }
+    /// Sets LaTeX-specific table layout information.
+    pub fn set_latex_style(&mut self, style: Option<TableStyle>) {
+        self.latex_style = style;
+    }
+}
+
+/// LaTeX-specific table column and horizontal rule information.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TableStyle {
+    column_specs: Vec<String>,
+    rule_style: RuleStyle,
+    hline_before_rows: Vec<usize>,
+}
+impl TableStyle {
+    /// Constructs preserved LaTeX table formatting information.
+    pub fn new(
+        column_specs: Vec<String>,
+        rule_style: RuleStyle,
+        hline_before_rows: Vec<usize>,
+    ) -> Self {
+        Self {
+            column_specs,
+            rule_style,
+            hline_before_rows,
+        }
+    }
+    /// Raw column specifications.
+    pub fn column_specs(&self) -> &[String] {
+        &self.column_specs
+    }
+    /// Horizontal rule convention.
+    pub fn rule_style(&self) -> RuleStyle {
+        self.rule_style
+    }
+    /// Rows preceded by a horizontal rule.
+    pub fn hline_before_rows(&self) -> &[usize] {
+        &self.hline_before_rows
+    }
+}
+/// Horizontal rule convention used by a LaTeX table.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum RuleStyle {
+    Hline,
+    Booktabs,
+    None,
+}
+
+/// Non-fatal loss or approximation warning attached to a document path.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SyncWarning {
+    /// Human-readable explanation of the conversion limitation.
+    pub message: String,
+    /// Index path of the affected block in the document tree.
+    pub affected_path: Vec<usize>,
 }
 
 /// A single table cell: block content plus span counts (from
@@ -530,6 +683,8 @@ pub struct Figure {
     caption: Option<Vec<Inline>>,
     label: Option<String>,
     width_percent: Option<f32>,
+    #[serde(default)]
+    leading_trivia: String,
 }
 
 /// True when an asset path could escape the `.tessera/assets` directory
@@ -601,6 +756,7 @@ impl Figure {
             caption,
             label,
             width_percent,
+            leading_trivia: String::new(),
         })
     }
 
@@ -624,6 +780,14 @@ impl Figure {
     pub const fn width_percent(&self) -> Option<f32> {
         self.width_percent
     }
+    /// Source text immediately preceding the figure.
+    pub fn leading_trivia(&self) -> &str {
+        &self.leading_trivia
+    }
+    /// Sets uninterpreted source trivia preceding this figure.
+    pub fn set_leading_trivia(&mut self, value: String) {
+        self.leading_trivia = value;
+    }
 }
 
 /// A display or inline equation. Math is always stored as LaTeX source,
@@ -634,6 +798,8 @@ pub struct Equation {
     latex_source: String,
     display_mode: bool,
     label: Option<String>,
+    #[serde(default)]
+    leading_trivia: String,
 }
 
 impl Equation {
@@ -660,6 +826,7 @@ impl Equation {
             latex_source: trimmed.to_string(),
             display_mode,
             label,
+            leading_trivia: String::new(),
         })
     }
 
@@ -677,6 +844,14 @@ impl Equation {
     /// The equation's cross-reference label, if any.
     pub fn label(&self) -> Option<&str> {
         self.label.as_deref()
+    }
+    /// Source text immediately preceding the equation.
+    pub fn leading_trivia(&self) -> &str {
+        &self.leading_trivia
+    }
+    /// Sets uninterpreted source trivia preceding this equation.
+    pub fn set_leading_trivia(&mut self, value: String) {
+        self.leading_trivia = value;
     }
 }
 
