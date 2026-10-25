@@ -346,9 +346,7 @@ fn parse_tabular(content: &str) -> Result<Table, TesseraError> {
 }
 
 fn parse_table_float(content: &str) -> Result<Table, TesseraError> {
-    let float_content = take_environment(content)
-        .map(|(_, body, _)| body)
-        .unwrap_or_else(|| content.to_string());
+    let float_content = content.to_string();
     let tabular_content = float_content
         .find("\\begin{tabular}")
         .and_then(|position| take_environment(&float_content[position..]))
@@ -366,7 +364,7 @@ fn parse_table_float(content: &str) -> Result<Table, TesseraError> {
 }
 
 fn listing_content(content: &str, minted: bool) -> (Option<String>, String) {
-    let mut remaining = content.trim_start();
+    let mut remaining = content;
     let mut language = None;
     if remaining.starts_with('[') {
         if let Some(end) = remaining.find(']') {
@@ -400,24 +398,33 @@ fn top_level_items(content: &str) -> Vec<(usize, usize)> {
     let mut cursor = 0;
     let mut nested_lists = 0usize;
     while cursor < content.len() {
-        let tokens = [
+        let Some(offset) = content[cursor..].find('\\') else {
+            break;
+        };
+        let position = cursor + offset;
+        let rest = &content[position..];
+        let token = [
             "\\begin{itemize}",
             "\\begin{enumerate}",
             "\\end{itemize}",
             "\\end{enumerate}",
             "\\item",
-        ];
-        let Some((position, token)) = tokens
-            .iter()
-            .filter_map(|token| {
-                content[cursor..]
-                    .find(token)
-                    .map(|offset| (cursor + offset, *token))
-            })
-            .min_by_key(|(position, _)| *position)
-        else {
-            break;
+        ]
+        .into_iter()
+        .find(|token| rest.starts_with(token));
+        let Some(token) = token else {
+            cursor = position + 1;
+            continue;
         };
+        if token == "\\item"
+            && rest[token.len()..]
+                .chars()
+                .next()
+                .is_some_and(|next| next.is_ascii_alphabetic())
+        {
+            cursor = position + token.len();
+            continue;
+        }
         if token.starts_with("\\begin{") {
             nested_lists += 1;
         } else if token.starts_with("\\end{") {
@@ -882,8 +889,37 @@ mod tests {
         assert_eq!(language.as_deref(), Some("rust"));
         assert_eq!(text, "x + 1\n");
         assert_eq!(
+            listing_content("\n[package]\nfn main() {}", false).1,
+            "[package]\nfn main() {}"
+        );
+        assert_eq!(listing_content("\n  [package]\n", false).1, "  [package]\n");
+        assert_eq!(
             strip_label(" x^2 \\label{eq:x} "),
             ("x^2".into(), Some("eq:x".into()))
+        );
+    }
+
+    #[test]
+    fn table_float_reads_caption_and_label_after_tabular() {
+        let table = parse_table_float(
+            r"\begin{tabular}{c}cell\\\end{tabular}\caption{Caption}\label{tab:one}",
+        )
+        .expect("table float");
+        assert_eq!(
+            table.caption().unwrap()[0],
+            Inline::text("Caption".into()).expect("text")
+        );
+        assert_eq!(table.label(), Some("tab:one"));
+    }
+
+    #[test]
+    fn list_item_scanner_skips_command_prefixes() {
+        let source = "\\itemsep=2pt\\item one\\item two";
+        let boundaries = top_level_items(source);
+        assert_eq!(boundaries.len(), 2);
+        assert_eq!(
+            boundaries[0].0,
+            source.find("\\item one").expect("first item")
         );
     }
 

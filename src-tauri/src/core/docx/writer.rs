@@ -35,8 +35,10 @@ struct Render<'a> {
     warnings: Vec<SyncWarning>,
     relationships: Vec<(String, String, String)>,
     media: Vec<(String, Vec<u8>, String)>,
+    ordered_list_nums: Vec<usize>,
     next_rel: usize,
     next_docpr: u32,
+    next_num_id: usize,
 }
 
 impl<'a> Render<'a> {
@@ -51,8 +53,10 @@ impl<'a> Render<'a> {
                 "numbering.xml".to_string(),
             )],
             media: Vec::new(),
+            ordered_list_nums: Vec::new(),
             next_rel: 2,
             next_docpr: 1,
+            next_num_id: 3,
         }
     }
 
@@ -132,6 +136,14 @@ fn render_block(
             out.push_str(&paragraph("Normal", &inlines(render, inline, path)))
         }
         Block::List { kind, items, .. } => {
+            let list_num_id = if *kind == ListKind::Ordered {
+                let id = render.next_num_id;
+                render.next_num_id += 1;
+                render.ordered_list_nums.push(id);
+                Some(id)
+            } else {
+                None
+            };
             for item in items {
                 let style = if *kind == ListKind::Ordered {
                     "List Number"
@@ -142,8 +154,10 @@ fn render_block(
                 for b in item {
                     render_block(render, b, &mut content, path)?;
                 }
-                if !apply_list_paragraph_style(&mut content, style) {
-                    content.push_str(&paragraph(style, ""));
+                if !apply_list_paragraph_style(&mut content, style, list_num_id) {
+                    let mut empty = paragraph("Normal", "");
+                    let _ = apply_list_paragraph_style(&mut empty, style, list_num_id);
+                    content.push_str(&empty);
                 }
                 out.push_str(&content);
             }
@@ -188,29 +202,53 @@ fn render_block(
     Ok(())
 }
 
-fn apply_list_paragraph_style(content: &mut String, style: &str) -> bool {
+fn apply_list_paragraph_style(content: &mut String, style: &str, num_id: Option<usize>) -> bool {
     let Some(paragraph_start) = content.find("<w:p>") else {
         return false;
     };
+    if content[..paragraph_start].contains("<w:tbl") {
+        return false;
+    }
     let insert_at = paragraph_start + "<w:p>".len();
+    let Some(paragraph_end_offset) = content[insert_at..].find("</w:p>") else {
+        return false;
+    };
+    let paragraph_end = insert_at + paragraph_end_offset;
     let style_property = format!("<w:pStyle w:val=\"{}\"/>", style_id(style));
-    if let Some(properties_start) = content[insert_at..].find("<w:pPr>") {
-        let start = insert_at + properties_start;
-        if let Some(properties_end) = content[start..].find("</w:pPr>") {
-            let end = start + properties_end;
-            if let Some(style_start) = content[start..end].find("<w:pStyle") {
-                let style_start = start + style_start;
-                if let Some(style_end) = content[style_start..end].find("/>") {
-                    content
-                        .replace_range(style_start..style_start + style_end + 2, &style_property);
-                    return true;
-                }
-            }
-            content.insert_str(end, &style_property);
-            return true;
+    let num_property = num_id
+        .map(|id| format!("<w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"{id}\"/></w:numPr>"));
+    let paragraph_xml = &content[insert_at..paragraph_end];
+    let (properties, body) = if let Some(properties_start) = paragraph_xml.find("<w:pPr>") {
+        let content_start = properties_start + "<w:pPr>".len();
+        let Some(properties_end) = paragraph_xml[content_start..].find("</w:pPr>") else {
+            return false;
+        };
+        let content_end = content_start + properties_end;
+        (
+            paragraph_xml[content_start..content_end].to_string(),
+            format!(
+                "{}{}",
+                &paragraph_xml[..properties_start],
+                &paragraph_xml[content_end + "</w:pPr>".len()..]
+            ),
+        )
+    } else {
+        (String::new(), paragraph_xml.to_string())
+    };
+    let mut rest = properties;
+    if let Some(start) = rest.find("<w:pStyle") {
+        if let Some(end) = rest[start..].find("/>") {
+            rest.replace_range(start..start + end + 2, "");
         }
     }
-    content.insert_str(insert_at, &format!("<w:pPr>{style_property}</w:pPr>"));
+    if let Some(start) = rest.find("<w:numPr>") {
+        if let Some(end) = rest[start..].find("</w:numPr>") {
+            rest.replace_range(start..start + end + "</w:numPr>".len(), "");
+        }
+    }
+    let num_property = num_property.unwrap_or_default();
+    let updated = format!("<w:pPr>{style_property}{num_property}{rest}</w:pPr>{body}");
+    content.replace_range(insert_at..paragraph_end, &updated);
     true
 }
 
@@ -439,7 +477,7 @@ fn math_atoms(chars: &[char], mut index: usize, end: usize) -> (Vec<String>, boo
                 let (close, depth) = matching_brace(chars, index, end);
                 if let Some(close) = close {
                     let (inner, inner_unsupported) = math_atoms(chars, index + 1, close);
-                    atoms.extend(inner);
+                    atoms.push(inner.concat());
                     unsupported |= inner_unsupported;
                     index = close + 1;
                     let _ = depth;
@@ -449,7 +487,10 @@ fn math_atoms(chars: &[char], mut index: usize, end: usize) -> (Vec<String>, boo
                     index += 1;
                 }
             }
-            '}' => index += 1,
+            '}' => {
+                unsupported = true;
+                index += 1;
+            }
             value if value.is_whitespace() => index += 1,
             value => {
                 atoms.push(omml_run(&value.to_string()));
@@ -735,7 +776,7 @@ fn package(document: &str, render: &Render<'_>) -> Result<Vec<u8>, TesseraError>
             .collect::<String>()
     );
     let styles = r#"<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults/><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style><w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/></w:style><w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/></w:style><w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="Caption"/></w:style><w:style w:type="paragraph" w:styleId="NoSpacing"><w:name w:val="No Spacing"/></w:style><w:style w:type="paragraph" w:styleId="ListBullet"><w:name w:val="List Bullet"/><w:pPr><w:numPr><w:numId w:val="1"/></w:numPr></w:pPr></w:style><w:style w:type="paragraph" w:styleId="ListNumber"><w:name w:val="List Number"/><w:pPr><w:numPr><w:numId w:val="2"/></w:numPr></w:pPr></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/></w:style><w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/></w:style><w:style w:type="paragraph" w:styleId="Heading3"><w:name w:val="heading 3"/></w:style><w:style w:type="paragraph" w:styleId="Heading4"><w:name w:val="heading 4"/></w:style><w:style w:type="paragraph" w:styleId="Heading5"><w:name w:val="heading 5"/></w:style><w:style w:type="paragraph" w:styleId="Heading6"><w:name w:val="heading 6"/></w:style></w:styles>"#;
-    let numbering = r#"<?xml version="1.0" encoding="UTF-8"?><w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="singleLevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum><w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="singleLevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num></w:numbering>"#;
+    let numbering = numbering_xml(render);
     for (name, data) in [
         ("[Content_Types].xml", content_types.as_bytes()),
         ("_rels/.rels", rels.as_bytes()),
@@ -754,6 +795,19 @@ fn package(document: &str, render: &Render<'_>) -> Result<Vec<u8>, TesseraError>
     }
     zip.finish().map_err(zip_error)?;
     Ok(cursor.into_inner())
+}
+
+fn numbering_xml(render: &Render<'_>) -> String {
+    let mut numbering = String::from(
+        r#"<?xml version="1.0" encoding="UTF-8"?><w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="singleLevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="&#x2022;"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum><w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="singleLevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>"#,
+    );
+    for num_id in &render.ordered_list_nums {
+        numbering.push_str(&format!(
+            r#"<w:num w:numId="{num_id}"><w:abstractNumId w:val="1"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="1"/></w:lvlOverride></w:num>"#
+        ));
+    }
+    numbering.push_str("</w:numbering>");
+    numbering
 }
 
 fn zip_error(error: zip::result::ZipError) -> TesseraError {
@@ -845,6 +899,60 @@ mod tests {
     }
 
     #[test]
+    fn each_ordered_list_starts_a_distinct_numbering_instance() {
+        let list = || {
+            Block::list(
+                ListKind::Ordered,
+                vec![vec![Block::paragraph(vec![
+                    Inline::text("item".into()).expect("text")
+                ])]],
+            )
+        };
+        let document = Document::new(DocMetadata::default(), vec![list(), list()]);
+        let output = write_docx(&document, std::env::temp_dir()).expect("write");
+        let mut archive = ZipArchive::new(Cursor::new(output.bytes)).expect("zip");
+        let mut xml = String::new();
+        archive
+            .by_name("word/document.xml")
+            .expect("document")
+            .read_to_string(&mut xml)
+            .expect("read");
+        assert!(xml.contains("<w:pStyle w:val=\"ListNumber\"/><w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"3\"/></w:numPr>"));
+        assert!(xml.contains("<w:pStyle w:val=\"ListNumber\"/><w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"4\"/></w:numPr>"));
+        let mut numbering = String::new();
+        archive
+            .by_name("word/numbering.xml")
+            .expect("numbering")
+            .read_to_string(&mut numbering)
+            .expect("read");
+        for id in [3, 4] {
+            assert!(numbering.contains(&format!(
+                "<w:num w:numId=\"{id}\"><w:abstractNumId w:val=\"1\"/><w:lvlOverride w:ilvl=\"0\"><w:startOverride w:val=\"1\"/></w:lvlOverride></w:num>"
+            )));
+        }
+    }
+
+    #[test]
+    fn list_style_only_changes_the_first_paragraph() {
+        let mut content = "<w:p></w:p><w:p><w:pPr><w:keepNext/></w:pPr></w:p>".to_string();
+        assert!(apply_list_paragraph_style(
+            &mut content,
+            "List Bullet",
+            None
+        ));
+        assert!(content.starts_with("<w:p><w:pPr><w:pStyle w:val=\"ListBullet\"/></w:pPr></w:p>"));
+        assert!(content.contains("<w:pPr><w:keepNext/></w:pPr>"));
+
+        let mut table_first =
+            "<w:tbl><w:tr><w:tc><w:p></w:p></w:tc></w:tr></w:tbl><w:p></w:p>".to_string();
+        assert!(!apply_list_paragraph_style(
+            &mut table_first,
+            "List Bullet",
+            None
+        ));
+    }
+
+    #[test]
     fn inline_formatting_uses_one_leaf_run_and_footnotes_warn_inline() {
         let document = Document::new(
             DocMetadata::default(),
@@ -892,6 +1000,14 @@ mod tests {
         );
         assert!(!xml.contains("<m:oMath xmlns:m="));
         assert!(output.warnings.is_empty());
+    }
+
+    #[test]
+    fn omml_keeps_braced_groups_as_script_bases_and_warns_on_unmatched_braces() {
+        let (omml, unsupported) = math_content("{xy}^2");
+        assert!(!unsupported);
+        assert!(omml.contains("<m:sSup><m:e><m:r><m:t xml:space=\"preserve\">x</m:t></m:r><m:r><m:t xml:space=\"preserve\">y</m:t></m:r></m:e>"));
+        assert!(math_content("x}").1);
     }
 
     #[test]

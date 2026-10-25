@@ -26,6 +26,7 @@ use crate::core::model::{
 };
 
 const MAX_DOCX_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_DOCX_GRID_SPAN: u32 = 64;
 
 /// Result of reading a DOCX, including media bytes which the project storage
 /// layer can copy into `.tessera/assets`.
@@ -65,7 +66,7 @@ pub fn read_docx_with_assets(bytes: &[u8]) -> Result<DocxReadResult, TesseraErro
     let relationships = parse_relationships(rels_xml.as_deref())?;
     let (body, media_refs) = parse_document(&document_xml, &styles, &relationships)?;
     let mut assets = HashMap::new();
-    for path in media_refs {
+    for path in unique_media_paths(media_refs) {
         if let Ok(data) = read_part(&mut archive, &format!("word/{path}")) {
             assets.insert(path, data);
         }
@@ -75,6 +76,14 @@ pub fn read_docx_with_assets(bytes: &[u8]) -> Result<DocxReadResult, TesseraErro
         document: Document::new(metadata, body),
         assets,
     })
+}
+
+fn unique_media_paths(paths: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    paths
+        .into_iter()
+        .filter(|path| seen.insert(path.clone()))
+        .collect()
 }
 
 fn parse_error(message: String) -> TesseraError {
@@ -201,7 +210,7 @@ fn parse_relationships(xml: Option<&[u8]>) -> Result<HashMap<String, String>, Te
                 if local_name(e.name().as_ref()) == b"Relationship" =>
             {
                 if let (Some(id), Some(target)) = (attr(&e, b"Id"), attr(&e, b"Target")) {
-                    if target.starts_with("media/") {
+                    if is_safe_media_target(&target) {
                         result.insert(id, target);
                     }
                 }
@@ -212,6 +221,16 @@ fn parse_relationships(xml: Option<&[u8]>) -> Result<HashMap<String, String>, Te
         buf.clear();
     }
     Ok(result)
+}
+
+fn is_safe_media_target(target: &str) -> bool {
+    target.starts_with("media/")
+        && !target.starts_with('/')
+        && !target.contains('\\')
+        && !target.contains(':')
+        && target
+            .split('/')
+            .all(|segment| !segment.is_empty() && segment != "." && segment != "..")
 }
 
 fn parse_document(
@@ -537,7 +556,7 @@ fn parse_cell(
                 let qname = e.name();
                 let n = local_name(qname.as_ref());
                 if n == b"gridSpan" {
-                    col_span = attr(&e, b"w:val").and_then(|v| v.parse().ok()).unwrap_or(1);
+                    col_span = parse_col_span(attr(&e, b"w:val"))?;
                 }
                 if n == b"vMerge" {
                     merge = if attr(&e, b"w:val").as_deref() == Some("restart") {
@@ -551,7 +570,7 @@ fn parse_cell(
                 let qname = e.name();
                 let n = local_name(qname.as_ref());
                 if n == b"gridSpan" {
-                    col_span = attr(&e, b"w:val").and_then(|v| v.parse().ok()).unwrap_or(1);
+                    col_span = parse_col_span(attr(&e, b"w:val"))?;
                 }
                 if n == b"vMerge" {
                     merge = if attr(&e, b"w:val").as_deref() == Some("restart") {
@@ -578,6 +597,23 @@ fn parse_cell(
         merge,
         Vec::new(),
     ))
+}
+
+fn parse_col_span(value: Option<String>) -> Result<u32, TesseraError> {
+    let span = value
+        .map(|value| {
+            value
+                .parse::<u32>()
+                .map_err(|_| parse_error(format!("invalid DOCX gridSpan value: {value}")))
+        })
+        .transpose()?
+        .unwrap_or(1);
+    if !(1..=MAX_DOCX_GRID_SPAN).contains(&span) {
+        return Err(parse_error(format!(
+            "DOCX gridSpan must be between 1 and {MAX_DOCX_GRID_SPAN}"
+        )));
+    }
+    Ok(span)
 }
 
 fn collect_math(reader: &mut Reader<&[u8]>, end: &[u8]) -> Result<String, TesseraError> {
@@ -674,6 +710,28 @@ mod tests {
 
     #[test]
     fn non_ascii_heading_style_names_do_not_panic() {
-        assert_eq!(normalize_style_name("標題"), "標題");
+        let name = "abcdeféXYZ";
+        assert!(name.len() > 7);
+        assert!(!name.is_char_boundary(7));
+        assert_eq!(normalize_style_name(name), name);
+    }
+
+    #[test]
+    fn media_paths_are_read_once_and_targets_stay_under_media() {
+        assert_eq!(
+            unique_media_paths(vec!["media/a.png".into(), "media/a.png".into()]),
+            vec!["media/a.png"]
+        );
+        assert!(is_safe_media_target("media/image.png"));
+        assert!(!is_safe_media_target("media/../secret.png"));
+        assert!(!is_safe_media_target("/media/image.png"));
+        assert!(!is_safe_media_target("media\\image.png"));
+    }
+
+    #[test]
+    fn grid_spans_are_bounded() {
+        assert_eq!(parse_col_span(Some("64".into())).expect("allowed span"), 64);
+        assert!(parse_col_span(Some("65".into())).is_err());
+        assert!(parse_col_span(Some("0".into())).is_err());
     }
 }
