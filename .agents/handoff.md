@@ -21,6 +21,35 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-02: Task 04 round-trip contract suite
+
+### Task 04 completion
+
+- Added `src-tauri/tests/contracts.rs` with JSON shape snapshots,
+  LaTeX and DOCX golden fixture tests, Opaque byte-exact checks, and
+  `proptest` round-trip properties.
+- Added accepted snapshots under `src-tauri/tests/snapshots/` and the
+  persisted property-test seed file
+  `src-tauri/tests/contracts.proptest-regressions`.
+- Fixed LaTeX canonical printing and parsing for trailing trivia,
+  escaped text, inline math at paragraph start, line breaks, and verbatim
+  or listing delimiters.
+- Fixed DOCX read-back for leading Title and Subtitle metadata, line
+  breaks, and `No Spacing` code paragraphs. DOCX property generators now
+  cover only representations that preserve their DM semantics.
+- Added the documented DOCX metadata mapping to `docs/specs.md`.
+
+### Verification
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check` passed.
+- `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --
+  -D warnings` passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml` passed: 27 unit
+  tests, 26 model tests, 14 contract tests, and all doc tests.
+- No `.snap.new` files remain. Manual Word or LibreOffice visual
+  verification remains unavailable on this machine, as noted in the
+  previous handoff entry.
+
 ## 2026-10-25: Task 03 recovery and verification
 
 ### Schema alignment

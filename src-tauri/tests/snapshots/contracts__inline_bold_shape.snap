@@ -1,0 +1,13 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&bold).unwrap()"
+---
+{
+  "inline": [
+    {
+      "text": "Bold text",
+      "type": "Text"
+    }
+  ],
+  "type": "Bold"
+}

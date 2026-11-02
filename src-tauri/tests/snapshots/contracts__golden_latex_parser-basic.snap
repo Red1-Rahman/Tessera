@@ -1,0 +1,142 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&parsed_doc).unwrap()"
+---
+{
+  "body": [
+    {
+      "inline": [
+        {
+          "text": "Introduction",
+          "type": "Text"
+        }
+      ],
+      "label": "sec:intro",
+      "level": "H1",
+      "trivia": {
+        "leading": ""
+      },
+      "type": "Heading"
+    },
+    {
+      "inline": [
+        {
+          "text": "This is ",
+          "type": "Text"
+        },
+        {
+          "inline": [
+            {
+              "text": "bold",
+              "type": "Text"
+            }
+          ],
+          "type": "Bold"
+        },
+        {
+          "text": " and ",
+          "type": "Text"
+        },
+        {
+          "inline": [
+            {
+              "text": "italic",
+              "type": "Text"
+            }
+          ],
+          "type": "Italic"
+        },
+        {
+          "text": ", with ",
+          "type": "Text"
+        },
+        {
+          "keys": [
+            "ref1"
+          ],
+          "type": "Citation"
+        },
+        {
+          "text": " and ",
+          "type": "Text"
+        },
+        {
+          "label": "sec:intro",
+          "type": "CrossRef"
+        },
+        {
+          "text": ".",
+          "type": "Text"
+        }
+      ],
+      "trivia": {
+        "leading": ""
+      },
+      "type": "Paragraph"
+    },
+    {
+      "items": [
+        [
+          {
+            "inline": [
+              {
+                "text": "First item",
+                "type": "Text"
+              }
+            ],
+            "trivia": {
+              "leading": ""
+            },
+            "type": "Paragraph"
+          }
+        ],
+        [
+          {
+            "inline": [
+              {
+                "text": "Second item",
+                "type": "Text"
+              }
+            ],
+            "trivia": {
+              "leading": ""
+            },
+            "type": "Paragraph"
+          }
+        ]
+      ],
+      "kind": "Unordered",
+      "trivia": {
+        "leading": ""
+      },
+      "type": "List"
+    },
+    {
+      "display_mode": true,
+      "label": null,
+      "latex_source": "x^2 + y^2",
+      "leading_trivia": "",
+      "type": "Equation"
+    }
+  ],
+  "metadata": {
+    "authors": [
+      {
+        "affiliation": null,
+        "name": "Ada Lovelace"
+      }
+    ],
+    "date": "2026",
+    "latex_class": "article",
+    "latex_class_options": [
+      "12pt",
+      "a4paper"
+    ],
+    "preamble_raw": [
+      "\\usepackage{graphicx}\r\n"
+    ],
+    "title": "Parser fixture"
+  },
+  "trailing_trivia": "\r\n",
+  "version": 0
+}

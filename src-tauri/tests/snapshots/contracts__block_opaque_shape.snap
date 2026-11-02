@@ -1,0 +1,10 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&opaque).unwrap()"
+---
+{
+  "origin": "Latex",
+  "raw": "\\custommacro",
+  "summary": "Raw TeX macro",
+  "type": "Opaque"
+}

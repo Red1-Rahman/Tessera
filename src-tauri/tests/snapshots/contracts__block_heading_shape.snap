@@ -1,0 +1,18 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&heading).unwrap()"
+---
+{
+  "inline": [
+    {
+      "text": "Heading Text",
+      "type": "Text"
+    }
+  ],
+  "label": "sec:intro",
+  "level": "H1",
+  "trivia": {
+    "leading": ""
+  },
+  "type": "Heading"
+}

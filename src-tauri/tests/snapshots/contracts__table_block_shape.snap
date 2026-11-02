@@ -1,0 +1,38 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&table_block).unwrap()"
+---
+{
+  "caption": [
+    {
+      "text": "Table Caption",
+      "type": "Text"
+    }
+  ],
+  "label": "tbl:test",
+  "latex_style": null,
+  "leading_trivia": "",
+  "rows": [
+    [
+      {
+        "blocks": [
+          {
+            "inline": [
+              {
+                "text": "Cell content",
+                "type": "Text"
+              }
+            ],
+            "trivia": {
+              "leading": ""
+            },
+            "type": "Paragraph"
+          }
+        ],
+        "col_span": 1,
+        "row_span": 1
+      }
+    ]
+  ],
+  "type": "Table"
+}

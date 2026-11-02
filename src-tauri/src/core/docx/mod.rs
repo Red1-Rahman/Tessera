@@ -14,3 +14,6 @@
 pub mod reader;
 /// Document Model to DOCX archive (`parallel-task03-D`).
 pub mod writer;
+
+pub use reader::read_docx;
+pub use writer::write_docx;

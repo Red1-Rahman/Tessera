@@ -1,0 +1,12 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&code_block).unwrap()"
+---
+{
+  "language": "rust",
+  "text": "fn main() {}",
+  "trivia": {
+    "leading": ""
+  },
+  "type": "CodeBlock"
+}

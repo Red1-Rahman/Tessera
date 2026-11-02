@@ -36,7 +36,9 @@ pub fn print(document: &Document) -> String {
             out.push('\n');
         }
         print_block(block, &mut out, 0, class);
-        if !out.ends_with('\n') {
+        if (index + 1 < document.body().len() || !document.trailing_trivia().is_empty())
+            && !out.ends_with('\n')
+        {
             out.push('\n');
         }
     }
@@ -144,9 +146,7 @@ fn print_block(block: &Block, out: &mut String, indent: usize, class: &str) {
                 out.push_str("\\begin{verbatim}\n");
             }
             out.push_str(text);
-            if !text.ends_with('\n') {
-                out.push('\n');
-            }
+            out.push('\n');
             indent_line(out, indent);
             out.push_str(if language.is_some() {
                 "\\end{lstlisting}"

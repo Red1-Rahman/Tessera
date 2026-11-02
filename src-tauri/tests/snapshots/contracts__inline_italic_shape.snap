@@ -1,0 +1,13 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&italic).unwrap()"
+---
+{
+  "inline": [
+    {
+      "text": "Italic text",
+      "type": "Text"
+    }
+  ],
+  "type": "Italic"
+}

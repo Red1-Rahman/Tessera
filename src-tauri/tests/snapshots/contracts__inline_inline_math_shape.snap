@@ -1,0 +1,8 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&inline_math).unwrap()"
+---
+{
+  "latex_source": "E = mc^2",
+  "type": "InlineMath"
+}

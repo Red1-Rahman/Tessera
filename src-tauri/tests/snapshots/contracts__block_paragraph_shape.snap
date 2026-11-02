@@ -1,0 +1,16 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&paragraph).unwrap()"
+---
+{
+  "inline": [
+    {
+      "text": "Paragraph text.",
+      "type": "Text"
+    }
+  ],
+  "trivia": {
+    "leading": ""
+  },
+  "type": "Paragraph"
+}

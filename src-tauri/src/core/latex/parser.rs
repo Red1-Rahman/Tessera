@@ -97,7 +97,7 @@ fn parse_blocks(source: &str, class: &str) -> Result<Vec<Block>, TesseraError> {
             let block = match env.as_str() {
                 "itemize" => parse_list(&content, ListKind::Unordered, class)?,
                 "enumerate" => parse_list(&content, ListKind::Ordered, class)?,
-                "verbatim" => Block::code_block(None, content)?,
+                "verbatim" => Block::code_block(None, strip_environment_delimiters(&content))?,
                 "lstlisting" => {
                     let (language, code) = listing_content(&content, false);
                     Block::code_block(language, code)?
@@ -223,6 +223,9 @@ fn parse_blocks(source: &str, class: &str) -> Result<Vec<Block>, TesseraError> {
                     | "ref"
                     | "cref"
                     | "autoref"
+                    | "("
+                    | "verb"
+                    | "\\"
             ) {
                 let end = next_block_boundary(rest);
                 blocks.push(Block::paragraph(parse_inlines(rest[..end].trim())?));
@@ -380,17 +383,19 @@ fn listing_content(content: &str, minted: bool) -> (Option<String>, String) {
             remaining = &mandatory[length..];
         }
     }
-    (language, strip_one_line_break(remaining))
+    (language, strip_environment_delimiters(remaining))
 }
 
-fn strip_one_line_break(value: &str) -> String {
-    if let Some(rest) = value.strip_prefix("\r\n") {
-        rest.to_string()
-    } else if let Some(rest) = value.strip_prefix('\n') {
-        rest.to_string()
-    } else {
-        value.to_string()
-    }
+fn strip_environment_delimiters(value: &str) -> String {
+    let without_leading = value
+        .strip_prefix("\r\n")
+        .or_else(|| value.strip_prefix('\n'))
+        .unwrap_or(value);
+    without_leading
+        .strip_suffix("\r\n")
+        .or_else(|| without_leading.strip_suffix('\n'))
+        .unwrap_or(without_leading)
+        .to_string()
 }
 
 fn top_level_items(content: &str) -> Vec<(usize, usize)> {
@@ -564,7 +569,16 @@ fn parse_inlines(source: &str) -> Result<Vec<Inline>, TesseraError> {
         }
         i = end;
     }
-    Ok(out)
+    let mut merged = Vec::with_capacity(out.len());
+    for inline in out {
+        match (merged.last_mut(), inline) {
+            (Some(Inline::Text { text: previous }), Inline::Text { text }) => {
+                previous.push_str(&text);
+            }
+            (_, inline) => merged.push(inline),
+        }
+    }
+    Ok(merged)
 }
 
 fn take_command(source: &str) -> Option<(String, String, usize)> {
@@ -882,17 +896,17 @@ mod tests {
         let (_, code, _) = take_environment(source).expect("listing");
         let (language, text) = listing_content(&code, false);
         assert_eq!(language.as_deref(), Some("Rust"));
-        assert_eq!(text, "let x = 1;\n");
+        assert_eq!(text, "let x = 1;");
         let source = "\\begin{minted}[linenos]{rust}\nx + 1\n\\end{minted}";
         let (_, code, _) = take_environment(source).expect("minted");
         let (language, text) = listing_content(&code, true);
         assert_eq!(language.as_deref(), Some("rust"));
-        assert_eq!(text, "x + 1\n");
+        assert_eq!(text, "x + 1");
         assert_eq!(
             listing_content("\n[package]\nfn main() {}", false).1,
             "[package]\nfn main() {}"
         );
-        assert_eq!(listing_content("\n  [package]\n", false).1, "  [package]\n");
+        assert_eq!(listing_content("\n  [package]\n", false).1, "  [package]");
         assert_eq!(
             strip_label(" x^2 \\label{eq:x} "),
             ("x^2".into(), Some("eq:x".into()))

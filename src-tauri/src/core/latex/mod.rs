@@ -14,3 +14,6 @@
 pub mod parser;
 /// Document Model to LaTeX source (`parallel-task03-B`).
 pub mod printer;
+
+pub use parser::parse_latex;
+pub use printer::print as print_latex;

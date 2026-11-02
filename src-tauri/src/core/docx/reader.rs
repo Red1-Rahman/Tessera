@@ -38,6 +38,13 @@ pub struct DocxReadResult {
     pub assets: HashMap<String, Vec<u8>>,
 }
 
+type ParsedDocument = (
+    Vec<Block>,
+    Vec<String>,
+    Option<String>,
+    Vec<crate::core::model::Author>,
+);
+
 /// Reads a DOCX byte stream into the Document Model.
 pub fn read_docx(bytes: &[u8]) -> Result<Document, TesseraError> {
     Ok(read_docx_with_assets(bytes)?.document)
@@ -64,14 +71,15 @@ pub fn read_docx_with_assets(bytes: &[u8]) -> Result<DocxReadResult, TesseraErro
     let rels_xml = read_optional_part(&mut archive, "word/_rels/document.xml.rels")?;
     let styles = parse_styles(styles_xml.as_deref())?;
     let relationships = parse_relationships(rels_xml.as_deref())?;
-    let (body, media_refs) = parse_document(&document_xml, &styles, &relationships)?;
+    let (body, media_refs, title, authors) =
+        parse_document(&document_xml, &styles, &relationships)?;
     let mut assets = HashMap::new();
     for path in unique_media_paths(media_refs) {
         if let Ok(data) = read_part(&mut archive, &format!("word/{path}")) {
             assets.insert(path, data);
         }
     }
-    let metadata = DocMetadata::new(None, Vec::new(), None, None, Vec::new())?;
+    let metadata = DocMetadata::new(title, authors, None, None, Vec::new())?;
     Ok(DocxReadResult {
         document: Document::new(metadata, body),
         assets,
@@ -237,18 +245,33 @@ fn parse_document(
     xml: &[u8],
     styles: &HashMap<String, String>,
     relationships: &HashMap<String, String>,
-) -> Result<(Vec<Block>, Vec<String>), TesseraError> {
+) -> Result<ParsedDocument, TesseraError> {
     let mut reader = Reader::from_reader(xml);
     let mut buf = Vec::new();
     let mut body = Vec::new();
     let mut media = Vec::new();
+    let mut title = None;
+    let mut authors = Vec::new();
     loop {
         match reader
             .read_event_into(&mut buf)
             .map_err(|e| parse_error(e.to_string()))?
         {
             Event::Start(e) if local_name(e.name().as_ref()) == b"p" => {
-                let (block, refs) = parse_paragraph(&mut reader, e, styles, relationships)?;
+                let (block, refs, style_name) =
+                    parse_paragraph(&mut reader, e, styles, relationships)?;
+                if body.is_empty() && style_name == "Title" {
+                    if let Some(value) = block_plain_text(&block) {
+                        title = Some(value);
+                    }
+                    continue;
+                }
+                if style_name == "Subtitle" && body.is_empty() {
+                    if let Some(value) = block_plain_text(&block) {
+                        authors.push(crate::core::model::Author::new(value, None)?);
+                    }
+                    continue;
+                }
                 body.push(block);
                 media.extend(refs);
             }
@@ -269,7 +292,7 @@ fn parse_document(
         }
         buf.clear();
     }
-    Ok((body, media))
+    Ok((body, media, title, authors))
 }
 
 fn parse_paragraph(
@@ -277,7 +300,7 @@ fn parse_paragraph(
     start: BytesStart<'_>,
     styles: &HashMap<String, String>,
     relationships: &HashMap<String, String>,
-) -> Result<(Block, Vec<String>), TesseraError> {
+) -> Result<(Block, Vec<String>, String), TesseraError> {
     let mut xml_writer = quick_xml::Writer::new(Vec::new());
     xml_writer
         .write_event(Event::Start(start.into_owned()))
@@ -287,6 +310,7 @@ fn parse_paragraph(
     let mut style = None;
     let mut has_unsupported = false;
     let mut text = String::new();
+    let mut line_breaks = Vec::new();
     let mut refs = Vec::new();
     loop {
         let event = reader
@@ -329,7 +353,7 @@ fn parse_paragraph(
                     text.push('\t');
                 }
                 if n == b"br" {
-                    text.push('\n');
+                    line_breaks.push(text.len());
                 }
                 if n == b"blip" {
                     if let Some(id) = attr(e, b"r:embed") {
@@ -374,6 +398,7 @@ fn parse_paragraph(
                 format!("Unsupported Word paragraph style or markup: {style_name}"),
             )?),
             refs,
+            style_name,
         ));
     }
     if !refs.is_empty() {
@@ -388,20 +413,19 @@ fn parse_paragraph(
             None,
             None,
         )?;
-        return Ok((Block::figure(figure), refs));
+        return Ok((Block::figure(figure), refs, style_name));
     }
     let inline = if xml_writer.get_ref().windows(5).any(|w| w == b"oMath") {
         if text.is_empty() {
             Vec::new()
         } else {
-            vec![Inline::inline_math(text)?]
+            vec![Inline::inline_math(text.clone())?]
         }
-    } else if text.is_empty() {
-        Vec::new()
     } else {
-        vec![Inline::text(text)?]
+        text_with_line_breaks(&text, &line_breaks)?
     };
     let block = match style_name.as_str() {
+        "Title" | "Subtitle" => Block::paragraph(inline),
         "Heading 1" => Block::heading(HeadingLevel::H1, inline, None)?,
         "Heading 2" => Block::heading(HeadingLevel::H2, inline, None)?,
         "Heading 3" => Block::heading(HeadingLevel::H3, inline, None)?,
@@ -410,9 +434,43 @@ fn parse_paragraph(
         "Heading 6" => Block::heading(HeadingLevel::H6, inline, None)?,
         "Quote" | "Intense Quote" => Block::quote(vec![Block::paragraph(inline)]),
         "Normal" | "Body Text" | "Caption" => Block::paragraph(inline),
+        "No Spacing" => Block::code_block(None, text)?,
         _ => Block::paragraph(inline),
     };
-    Ok((block, refs))
+    Ok((block, refs, style_name))
+}
+
+fn text_with_line_breaks(text: &str, breaks: &[usize]) -> Result<Vec<Inline>, TesseraError> {
+    if text.is_empty() && breaks.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut result = Vec::new();
+    let mut start = 0;
+    for &break_at in breaks {
+        if break_at > start {
+            result.push(Inline::text(text[start..break_at].to_string())?);
+        }
+        result.push(Inline::line_break());
+        start = break_at;
+    }
+    if start < text.len() {
+        result.push(Inline::text(text[start..].to_string())?);
+    }
+    Ok(result)
+}
+
+fn block_plain_text(block: &Block) -> Option<String> {
+    let Block::Paragraph { inline, .. } = block else {
+        return None;
+    };
+    let mut text = String::new();
+    for value in inline {
+        match value {
+            Inline::Text { text: value } => text.push_str(value),
+            _ => return None,
+        }
+    }
+    (!text.trim().is_empty()).then_some(text)
 }
 
 fn built_in_style(style_id: &str) -> Option<String> {
@@ -433,9 +491,12 @@ fn built_in_style(style_id: &str) -> Option<String> {
 fn is_supported_style(style: &str) -> bool {
     matches!(
         style,
-        "Normal"
+        "Title"
+            | "Subtitle"
+            | "Normal"
             | "Body Text"
             | "Caption"
+            | "No Spacing"
             | "Quote"
             | "Intense Quote"
             | "Heading 1"
@@ -676,7 +737,8 @@ mod tests {
     #[test]
     fn opaque_paragraph_preserves_outer_xml_tags() {
         let xml = br#"<w:document xmlns:w="urn:test"><w:body><w:p w:rsidR="1"><w:pPr><w:pStyle w:val="CustomStyle"/></w:pPr><w:r><w:t>keep</w:t></w:r></w:p></w:body></w:document>"#;
-        let (blocks, _) = parse_document(xml, &HashMap::new(), &HashMap::new()).expect("parse");
+        let (blocks, _, _, _) =
+            parse_document(xml, &HashMap::new(), &HashMap::new()).expect("parse");
         let Block::Opaque(value) = &blocks[0] else {
             panic!("opaque block")
         };

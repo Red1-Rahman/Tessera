@@ -15,3 +15,7 @@ Thumbs.db
 
 # ide
 .vscode/
+
+# insta pending snapshots (accepted ones are committed as .snap)
+*.snap.new
+*.pending-snap

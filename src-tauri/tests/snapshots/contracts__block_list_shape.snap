@@ -1,0 +1,27 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&list).unwrap()"
+---
+{
+  "items": [
+    [
+      {
+        "inline": [
+          {
+            "text": "Item 1",
+            "type": "Text"
+          }
+        ],
+        "trivia": {
+          "leading": ""
+        },
+        "type": "Paragraph"
+      }
+    ]
+  ],
+  "kind": "Unordered",
+  "trivia": {
+    "leading": ""
+  },
+  "type": "List"
+}

@@ -1,0 +1,13 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&footnote).unwrap()"
+---
+{
+  "inline": [
+    {
+      "text": "Footnote content",
+      "type": "Text"
+    }
+  ],
+  "type": "Footnote"
+}

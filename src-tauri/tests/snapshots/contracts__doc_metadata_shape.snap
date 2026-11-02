@@ -1,0 +1,20 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&metadata).unwrap()"
+---
+{
+  "authors": [
+    {
+      "affiliation": "University",
+      "name": "Alice Smith"
+    }
+  ],
+  "date": "2026-10-25",
+  "latex_class": "article",
+  "latex_class_options": [
+    "12pt",
+    "a4paper"
+  ],
+  "preamble_raw": [],
+  "title": "Test Title"
+}

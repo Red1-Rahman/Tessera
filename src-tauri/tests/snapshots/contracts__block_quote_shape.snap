@@ -1,0 +1,24 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&quote).unwrap()"
+---
+{
+  "blocks": [
+    {
+      "inline": [
+        {
+          "text": "Quoted text",
+          "type": "Text"
+        }
+      ],
+      "trivia": {
+        "leading": ""
+      },
+      "type": "Paragraph"
+    }
+  ],
+  "trivia": {
+    "leading": ""
+  },
+  "type": "Quote"
+}

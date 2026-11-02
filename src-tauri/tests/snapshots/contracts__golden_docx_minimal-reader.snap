@@ -1,0 +1,73 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&parsed_doc).unwrap()"
+---
+{
+  "body": [
+    {
+      "inline": [
+        {
+          "text": "Fixture heading",
+          "type": "Text"
+        }
+      ],
+      "label": null,
+      "level": "H1",
+      "trivia": {
+        "leading": ""
+      },
+      "type": "Heading"
+    },
+    {
+      "inline": [
+        {
+          "text": "Fixture paragraph",
+          "type": "Text"
+        }
+      ],
+      "trivia": {
+        "leading": ""
+      },
+      "type": "Paragraph"
+    },
+    {
+      "caption": null,
+      "label": null,
+      "latex_style": null,
+      "leading_trivia": "",
+      "rows": [
+        [
+          {
+            "blocks": [
+              {
+                "inline": [
+                  {
+                    "text": "merged",
+                    "type": "Text"
+                  }
+                ],
+                "trivia": {
+                  "leading": ""
+                },
+                "type": "Paragraph"
+              }
+            ],
+            "col_span": 2,
+            "row_span": 1
+          }
+        ]
+      ],
+      "type": "Table"
+    }
+  ],
+  "metadata": {
+    "authors": [],
+    "date": null,
+    "latex_class": null,
+    "latex_class_options": [],
+    "preamble_raw": [],
+    "title": null
+  },
+  "trailing_trivia": "",
+  "version": 0
+}

@@ -1,0 +1,17 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&Block::figure(fig)).unwrap()"
+---
+{
+  "asset_path": "figure1.png",
+  "caption": [
+    {
+      "text": "Fig Caption",
+      "type": "Text"
+    }
+  ],
+  "label": "fig:test",
+  "leading_trivia": "",
+  "type": "Figure",
+  "width_percent": 80.0
+}

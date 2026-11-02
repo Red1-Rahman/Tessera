@@ -1,0 +1,8 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&cross_ref).unwrap()"
+---
+{
+  "label": "sec:intro",
+  "type": "CrossRef"
+}

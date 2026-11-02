@@ -179,6 +179,20 @@ equivalents; anything else (custom styles, embedded objects, tracked
 changes, comments) becomes `Opaque` with `origin: Docx`, exactly as it
 would for an unsupported LaTeX construct.
 
+### Document metadata in DOCX
+
+| DM field | Word representation |
+|---|---|
+| `DocMetadata.title` | First body paragraph, style `Title` |
+| `DocMetadata.authors[i].name` | Paragraphs immediately after the title, style `Subtitle`, one per author |
+
+Only leading `Title`/`Subtitle` paragraphs are metadata; the same styles
+later in the body are `Opaque`. `Author.affiliation`, `DocMetadata.date`,
+`latex_class`, `latex_class_options` and `preamble_raw` have no DOCX
+representation: the writer drops them and returns a `SyncWarning`.
+`label` on headings, tables and figures is likewise not written to DOCX
+(bookmark support is deferred, see "Deferred").
+
 ## 3. Multi-file LaTeX projects
 
 A project's `main.tex` may use `\input{chapter1}` / `\include{chapter1}`.

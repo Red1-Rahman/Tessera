@@ -1,0 +1,11 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&Block::equation(eq)).unwrap()"
+---
+{
+  "display_mode": true,
+  "label": "eq:pythagoras",
+  "latex_source": "a^2 + b^2 = c^2",
+  "leading_trivia": "",
+  "type": "Equation"
+}

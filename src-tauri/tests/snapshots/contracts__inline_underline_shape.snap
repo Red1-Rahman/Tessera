@@ -1,0 +1,13 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&underline).unwrap()"
+---
+{
+  "inline": [
+    {
+      "text": "Underlined text",
+      "type": "Text"
+    }
+  ],
+  "type": "Underline"
+}

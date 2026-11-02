@@ -1,0 +1,8 @@
+---
+source: tests/contracts.rs
+expression: "serde_json::to_value(&code).unwrap()"
+---
+{
+  "text": "println!()",
+  "type": "Code"
+}
