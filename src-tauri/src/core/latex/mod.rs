@@ -10,6 +10,8 @@
 //! Model) and `printer.rs` (Document Model back to source), per
 //! `docs/specs.md`, section 1.
 
+/// Okabe-Ito token classification (`parallel-task06-A`).
+pub mod highlight;
 /// LaTeX source to Document Model (`parallel-task03-A`).
 pub mod parser;
 /// Document Model to LaTeX source (`parallel-task03-B`).

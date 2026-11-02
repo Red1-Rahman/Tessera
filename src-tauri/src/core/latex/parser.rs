@@ -474,119 +474,82 @@ fn parse_figure(content: &str) -> Result<Block, TesseraError> {
 }
 
 fn parse_inlines(source: &str) -> Result<Vec<Inline>, TesseraError> {
+    let tokens = tokenize_inline(source)?;
     let mut out = Vec::new();
-    let mut i = 0;
-    let bytes = source.as_bytes();
-    while i < source.len() {
-        if bytes[i] == b'%' {
-            i = source[i..]
-                .find('\n')
-                .map(|n| i + n + 1)
-                .unwrap_or(source.len());
-            continue;
-        }
-        if bytes[i] == b'$' {
-            let end = source[i + 1..]
-                .find('$')
-                .ok_or_else(|| parse_error(source, "unterminated inline math"))?
-                + i
-                + 1;
-            out.push(Inline::inline_math(source[i + 1..end].to_string())?);
-            i = end + 1;
-            continue;
-        }
-        if source[i..].starts_with("\\(") {
-            let end = source[i + 2..]
-                .find("\\)")
-                .ok_or_else(|| parse_error(source, "unterminated inline math"))?
-                + i
-                + 2;
-            out.push(Inline::inline_math(source[i + 2..end].to_string())?);
-            i = end + 2;
-            continue;
-        }
-        if bytes[i] == b'\\' {
-            if source[i..].starts_with("\\\\") {
-                out.push(Inline::line_break());
-                i += 2;
-                continue;
+    let mut index = 0;
+    while index < tokens.len() {
+        let token = &tokens[index];
+        match &token.kind {
+            InlineTokenKind::Text(text) => {
+                append_text(&mut out, text, index + 1 == tokens.len())?;
             }
-            if source[i..].starts_with("\\verb") {
-                let delimiter = source
-                    .as_bytes()
-                    .get(i + 5)
-                    .copied()
-                    .ok_or_else(|| parse_error(source, "missing verbatim delimiter"))?
-                    as char;
-                let start = i + 6;
-                let end = source[start..]
-                    .find(delimiter)
-                    .ok_or_else(|| parse_error(source, "unterminated verbatim text"))?
-                    + start;
-                out.push(Inline::code(source[start..end].to_string())?);
-                i = end + 1;
-                continue;
+            InlineTokenKind::Error(message) => return Err(parse_error(source, message)),
+            InlineTokenKind::Comment => {}
+            InlineTokenKind::Math(math) => {
+                out.push(Inline::inline_math(math.clone())?);
             }
-            let (cmd, arg, consumed) = take_command(&source[i..])
-                .ok_or_else(|| parse_error(source, "malformed command"))?;
-            let node = match cmd.as_str() {
-                "textbf" | "bfseries" => Inline::bold(parse_inlines(&arg)?),
-                "textit" | "emph" | "itshape" => Inline::italic(parse_inlines(&arg)?),
-                "underline" => Inline::underline(parse_inlines(&arg)?),
-                "texttt" => Inline::code(arg)?,
-                "footnote" => Inline::footnote(parse_inlines(&arg)?),
-                "cite" | "citep" | "citet" => {
-                    Inline::citation(arg.split(',').map(|s| s.trim().to_string()).collect())?
-                }
-                "ref" | "cref" | "autoref" => Inline::cross_ref(arg.trim().to_string())?,
-                " " => Inline::Text {
-                    text: " ".to_string(),
-                },
-                "{" | "}" | "#" | "$" | "%" | "&" | "_" => {
-                    Inline::text(unescape_latex_text(&format!("\\{cmd}")))?
-                }
-                "^" | "~" => {
-                    if source[i + consumed..].starts_with("{}") {
-                        i += 2;
+            InlineTokenKind::LineBreak => out.push(Inline::line_break()),
+            InlineTokenKind::Code(text) => out.push(Inline::code(text.clone())?),
+            InlineTokenKind::OpenBrace => append_text(&mut out, "{", false)?,
+            InlineTokenKind::CloseBrace => append_text(&mut out, "}", false)?,
+            InlineTokenKind::OpenBracket => append_text(&mut out, "[", false)?,
+            InlineTokenKind::CloseBracket => append_text(&mut out, "]", false)?,
+            InlineTokenKind::Command { name } => {
+                let alphabetic = name.chars().next().is_some_and(char::is_alphabetic);
+                let (arg, group_tokens) = if alphabetic {
+                    command_group(&tokens, source, index)?
+                } else {
+                    (None, 0)
+                };
+                let mut consumed = 1 + group_tokens;
+                let node = match name.as_str() {
+                    "textbf" | "bfseries" => Inline::bold(parse_inlines(&arg.unwrap_or_default())?),
+                    "textit" | "emph" | "itshape" => {
+                        Inline::italic(parse_inlines(&arg.unwrap_or_default())?)
                     }
-                    Inline::text(if cmd == "^" { "^" } else { "~" }.to_string())?
-                }
-                "textbackslash" => Inline::text("\\".to_string())?,
-                _ => {
-                    return Err(parse_error(
-                        source,
-                        &format!("unsupported inline command: \\{cmd}"),
-                    ))
-                }
-            };
-            out.push(node);
-            i += consumed;
-            continue;
-        }
-        let mut end = i + 1;
-        while end < source.len() && !matches!(source.as_bytes()[end], b'\\' | b'$' | b'%') {
-            end += 1;
-        }
-        let text = source[i..end].to_string();
-        if !text.is_empty() && !text.trim().is_empty() {
-            out.push(Inline::text(text)?);
-        } else if !text.is_empty() && !out.is_empty() && end < source.len() {
-            // Whitespace between two inline nodes is a single visual space
-            // in TeX, so collapse it to one. When the previous node is a
-            // text run, however, the whitespace belongs to that run and
-            // must be preserved exactly: the printer emits escaped
-            // characters such as `\_` inline, which splits a single run
-            // into several text segments. Collapsing those segments would
-            // lose the spacing inside the original text run.
-            match out.last_mut() {
-                Some(Inline::Text { text: previous }) => previous.push_str(&text),
-                _ => out.push(Inline::Text {
-                    text: " ".to_string(),
-                }),
+                    "underline" => Inline::underline(parse_inlines(&arg.unwrap_or_default())?),
+                    "texttt" => Inline::code(arg.unwrap_or_default())?,
+                    "footnote" => Inline::footnote(parse_inlines(&arg.unwrap_or_default())?),
+                    "cite" | "citep" | "citet" => Inline::citation(
+                        arg.unwrap_or_default()
+                            .split(',')
+                            .map(|key| key.trim().to_string())
+                            .collect(),
+                    )?,
+                    "ref" | "cref" | "autoref" => {
+                        Inline::cross_ref(arg.unwrap_or_default().trim().to_string())?
+                    }
+                    " " => Inline::Text {
+                        text: " ".to_string(),
+                    },
+                    "{" | "}" | "#" | "$" | "%" | "&" | "_" => {
+                        Inline::text(unescape_latex_text(&format!("\\{name}")))?
+                    }
+                    "^" | "~" => {
+                        if index + 2 < tokens.len()
+                            && matches!(tokens[index + 1].kind, InlineTokenKind::OpenBrace)
+                            && matches!(tokens[index + 2].kind, InlineTokenKind::CloseBrace)
+                        {
+                            consumed += 2;
+                        }
+                        Inline::text(if name == "^" { "^" } else { "~" }.to_string())?
+                    }
+                    "textbackslash" => Inline::text("\\".to_string())?,
+                    _ => {
+                        return Err(parse_error(
+                            source,
+                            &format!("unsupported inline command: \\{name}"),
+                        ))
+                    }
+                };
+                out.push(node);
+                index += consumed;
+                continue;
             }
         }
-        i = end;
+        index += 1;
     }
+
     let mut merged = Vec::with_capacity(out.len());
     for inline in out {
         match (merged.last_mut(), inline) {
@@ -597,6 +560,260 @@ fn parse_inlines(source: &str) -> Result<Vec<Inline>, TesseraError> {
         }
     }
     Ok(merged)
+}
+
+/// One lexical unit inside inline LaTeX. `parser` and `highlight` share
+/// this tokenizer so syntax highlighting can never disagree with parsing
+/// about what a token is (see `docs/specs.md`, section 5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum InlineTokenKind {
+    Text(String),
+    Error(String),
+    Comment,
+    Math(String),
+    LineBreak,
+    Code(String),
+    Command { name: String },
+    OpenBrace,
+    CloseBrace,
+    OpenBracket,
+    CloseBracket,
+}
+
+/// A token plus its byte range in the original source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct InlineToken {
+    pub kind: InlineTokenKind,
+    pub span: std::ops::Range<usize>,
+}
+
+/// Tokenizes inline LaTeX without interpreting it. Whitespace, brackets,
+/// comments, math, commands, and verbatim runs are preserved with their
+/// source ranges for the highlighter.
+pub(crate) fn tokenize_inline(source: &str) -> Result<Vec<InlineToken>, TesseraError> {
+    tokenize_inline_mode(source, false)
+}
+
+pub(crate) fn tokenize_inline_lenient(source: &str) -> Vec<InlineToken> {
+    tokenize_inline_mode(source, true).unwrap_or_default()
+}
+
+fn tokenize_inline_mode(source: &str, lenient: bool) -> Result<Vec<InlineToken>, TesseraError> {
+    let mut tokens = Vec::new();
+    let mut index = 0;
+    while index < source.len() {
+        let byte = source.as_bytes()[index];
+        if byte == b'%' {
+            let end = source[index..]
+                .find('\n')
+                .map(|offset| index + offset + 1)
+                .unwrap_or(source.len());
+            tokens.push(InlineToken {
+                kind: InlineTokenKind::Comment,
+                span: index..end,
+            });
+            index = end;
+            continue;
+        }
+        if byte == b'$' {
+            let Some(end) = source[index + 1..].find('$').map(|end| end + index + 1) else {
+                if lenient {
+                    tokens.push(InlineToken {
+                        kind: InlineTokenKind::Error("unterminated inline math".into()),
+                        span: index..index + 1,
+                    });
+                    index += 1;
+                    continue;
+                }
+                return Err(parse_error(source, "unterminated inline math"));
+            };
+            tokens.push(InlineToken {
+                kind: InlineTokenKind::Math(source[index + 1..end].to_string()),
+                span: index..end + 1,
+            });
+            index = end + 1;
+            continue;
+        }
+        if source[index..].starts_with("\\(") {
+            let Some(end) = source[index + 2..].find("\\)").map(|end| end + index + 2) else {
+                if lenient {
+                    tokens.push(InlineToken {
+                        kind: InlineTokenKind::Error("unterminated inline math".into()),
+                        span: index..index + 2,
+                    });
+                    index += 2;
+                    continue;
+                }
+                return Err(parse_error(source, "unterminated inline math"));
+            };
+            tokens.push(InlineToken {
+                kind: InlineTokenKind::Math(source[index + 2..end].to_string()),
+                span: index..end + 2,
+            });
+            index = end + 2;
+            continue;
+        }
+        if byte == b'\\' {
+            if source[index..].starts_with("\\\\") {
+                tokens.push(InlineToken {
+                    kind: InlineTokenKind::LineBreak,
+                    span: index..index + 2,
+                });
+                index += 2;
+                continue;
+            }
+            let Some((name, _, _)) = take_command(&source[index..]) else {
+                if lenient {
+                    tokens.push(InlineToken {
+                        kind: InlineTokenKind::Error("malformed command".into()),
+                        span: index..index + 1,
+                    });
+                    index += 1;
+                    continue;
+                }
+                return Err(parse_error(source, "malformed command"));
+            };
+            let name_end = index + 1 + name.len();
+            if name == "verb" {
+                let Some(delimiter) = source[name_end..].chars().next() else {
+                    if lenient {
+                        tokens.push(InlineToken {
+                            kind: InlineTokenKind::Error("missing verbatim delimiter".into()),
+                            span: index..name_end,
+                        });
+                        index = name_end;
+                        continue;
+                    }
+                    return Err(parse_error(source, "missing verbatim delimiter"));
+                };
+                let delimiter_len = delimiter.len_utf8();
+                let start = name_end + delimiter_len;
+                let Some(end) = source[start..].find(delimiter).map(|end| end + start) else {
+                    if lenient {
+                        tokens.push(InlineToken {
+                            kind: InlineTokenKind::Error("unterminated verbatim text".into()),
+                            span: index..start,
+                        });
+                        index = start;
+                        continue;
+                    }
+                    return Err(parse_error(source, "unterminated verbatim text"));
+                };
+                tokens.push(InlineToken {
+                    kind: InlineTokenKind::Code(source[start..end].to_string()),
+                    span: index..end + delimiter_len,
+                });
+                index = end + delimiter_len;
+                continue;
+            }
+            tokens.push(InlineToken {
+                kind: InlineTokenKind::Command { name },
+                span: index..name_end,
+            });
+            index = name_end;
+            continue;
+        }
+        if let Some((kind, length)) = bracket_token(byte) {
+            tokens.push(InlineToken {
+                kind,
+                span: index..index + length,
+            });
+            index += length;
+            continue;
+        }
+        let mut end = index + 1;
+        while end < source.len()
+            && !matches!(
+                source.as_bytes()[end],
+                b'\\' | b'$' | b'%' | b'{' | b'}' | b'[' | b']'
+            )
+        {
+            end += 1;
+        }
+        tokens.push(InlineToken {
+            kind: InlineTokenKind::Text(source[index..end].to_string()),
+            span: index..end,
+        });
+        index = end;
+    }
+    Ok(tokens)
+}
+
+fn bracket_token(byte: u8) -> Option<(InlineTokenKind, usize)> {
+    match byte {
+        b'{' => Some((InlineTokenKind::OpenBrace, 1)),
+        b'}' => Some((InlineTokenKind::CloseBrace, 1)),
+        b'[' => Some((InlineTokenKind::OpenBracket, 1)),
+        b']' => Some((InlineTokenKind::CloseBracket, 1)),
+        _ => None,
+    }
+}
+
+fn append_text(out: &mut Vec<Inline>, text: &str, is_last: bool) -> Result<(), TesseraError> {
+    if !text.is_empty() && !text.trim().is_empty() {
+        out.push(Inline::text(text.to_string())?);
+    } else if !text.is_empty() && !out.is_empty() && !is_last {
+        match out.last_mut() {
+            Some(Inline::Text { text: previous }) => previous.push_str(text),
+            _ => out.push(Inline::Text {
+                text: " ".to_string(),
+            }),
+        }
+    }
+    Ok(())
+}
+
+/// Finds the mandatory `{...}` argument following a command token, if
+/// any. Whitespace between the command and its opening brace is consumed
+/// the way `take_command` consumes it.
+fn command_group(
+    tokens: &[InlineToken],
+    source: &str,
+    command_index: usize,
+) -> Result<(Option<String>, usize), TesseraError> {
+    let mut index = command_index + 1;
+    let mut skipped = 0;
+    while index < tokens.len() {
+        match &tokens[index].kind {
+            InlineTokenKind::Text(text) if text.trim().is_empty() => {
+                skipped += 1;
+                index += 1;
+            }
+            InlineTokenKind::OpenBrace => {
+                let (arg, consumed) = collect_group(tokens, source, index)?;
+                return Ok((Some(arg), skipped + consumed));
+            }
+            _ => break,
+        }
+    }
+    Ok((None, 0))
+}
+
+fn collect_group(
+    tokens: &[InlineToken],
+    source: &str,
+    open_index: usize,
+) -> Result<(String, usize), TesseraError> {
+    let start = tokens[open_index].span.end;
+    let mut depth = 0usize;
+    let mut index = open_index;
+    while index < tokens.len() {
+        match tokens[index].kind {
+            InlineTokenKind::OpenBrace => depth += 1,
+            InlineTokenKind::CloseBrace => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Ok((
+                        source[start..tokens[index].span.start].to_string(),
+                        index - open_index + 1,
+                    ));
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    Err(parse_error(source, "unterminated command argument"))
 }
 
 fn take_command(source: &str) -> Option<(String, String, usize)> {

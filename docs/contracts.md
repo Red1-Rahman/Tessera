@@ -379,6 +379,31 @@ pub struct SyncWarning {
     pub affected_path: Vec<usize>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HighlightRequest {
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum HighlightKind {
+    Command,
+    Bracket,
+    Environment,
+    Comment,
+    Math,
+    Error,
+    Text,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HighlightToken {
+    /// Half-open UTF-16 code-unit offsets into `HighlightRequest.source`,
+    /// matching JavaScript editor ranges.
+    pub start: u32,
+    pub end: u32,
+    pub kind: HighlightKind,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExportFormat { Latex, Docx, Pdf, Markdown, PlainText }
 

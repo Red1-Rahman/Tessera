@@ -518,7 +518,11 @@ fn unresolved_refs(document: &Document) -> Vec<(String, Vec<usize>)> {
     unresolved
 }
 
-fn document_labels(document: &Document) -> std::collections::HashSet<String> {
+/// Every cross-reference label defined by a heading, table, figure, or
+/// equation in the document, including nested list, quote, and table
+/// content. Used by the highlighter to distinguish resolved and
+/// unresolved `\ref` targets.
+pub fn document_labels(document: &Document) -> std::collections::HashSet<String> {
     let mut labels = std::collections::HashSet::new();
     walk_blocks(document.body(), &mut Vec::new(), &mut |_, block| {
         if let Some(label) = block.label() {

@@ -20,6 +20,7 @@ use tauri::State;
 
 use crate::core::diff::{DocSyncResult, DocxEditRequest, LatexEditRequest};
 use crate::core::error::TesseraError;
+use crate::core::latex::highlight::{HighlightRequest, HighlightToken};
 use crate::core::project::{NewProjectRequest, ProjectSession, ProjectState};
 
 /// Tauri-managed state for one application window.
@@ -74,4 +75,13 @@ pub fn apply_docx_edit(
 #[tauri::command]
 pub fn save_project(state: State<'_, AppState>) -> Result<(), TesseraError> {
     lock_session(&state)?.save_project()
+}
+
+/// Returns Okabe-Ito token categories for a LaTeX source range.
+#[tauri::command]
+pub fn get_highlight_tokens(
+    state: State<'_, AppState>,
+    request: HighlightRequest,
+) -> Result<Vec<HighlightToken>, TesseraError> {
+    lock_session(&state)?.get_highlight_tokens(&request)
 }
