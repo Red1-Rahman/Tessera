@@ -21,6 +21,36 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-02: Review fixes for parser and exports
+
+### Changes
+
+- Made inline `\verb` delimiter and closing-span arithmetic UTF-8 safe.
+- Added strict and lenient shared tokenizer modes. Strict parsing still
+  reports malformed input, while highlighting emits `Error` tokens and
+  continues.
+- Replaced highlighter UTF-16 offset storage with a byte-indexed vector
+  that only returns offsets for valid character boundaries.
+- Updated Markdown labels, cross-references, code fences, list
+  continuation indentation, and escaping for dollar signs, at signs, and
+  list markers.
+- Renamed shadowing bindings in plain-text export and restored distinct
+  level 1 and level 2 heading underlines.
+
+### Verification
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml` passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml --tests` passed.
+- `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --
+  -D warnings` passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml` passed: 38 unit
+  tests, 14 contract tests, 4 highlighter integration tests, 26 model
+  tests, 7 sync tests, and doc tests.
+- The highlighter work was committed as `2307b2e` and
+  `385c0dd`. Markdown and plain-text exporters were committed as
+  `ac8e993`, `a86c972`, and integration fix `f08a843`. No Copilot
+  co-author trailer was added.
+
 ## 2026-11-02: Task 04 round-trip contract suite
 
 ### Task 04 completion
