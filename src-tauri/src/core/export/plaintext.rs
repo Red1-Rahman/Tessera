@@ -147,11 +147,11 @@ fn table(table: &Table, out: &mut String, indent: usize) {
 
 fn cell_text(blocks: &[Block]) -> String {
     let mut text = String::new();
-    for block in blocks {
-        if let Block::Paragraph { inline, .. } = block {
+    for current_block in blocks {
+        if let Block::Paragraph { inline, .. } = current_block {
             text.push_str(&inlines(inline));
         } else {
-            block(block, &mut text, 0);
+            block(current_block, &mut text, 0);
         }
     }
     text.replace(['\n', '\t'], " ").trim().to_string()

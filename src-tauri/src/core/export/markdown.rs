@@ -24,9 +24,7 @@
 use std::fmt::Write;
 
 use crate::core::error::TesseraError;
-use crate::core::model::{
-    Block, Document, Inline, ListKind, OpaqueOrigin, Table, TableCell,
-};
+use crate::core::model::{Block, Document, Inline, ListKind, OpaqueOrigin, Table, TableCell};
 
 /// Renders a document as Markdown.
 pub fn render_markdown(document: &Document) -> Result<String, TesseraError> {
@@ -104,9 +102,7 @@ impl Renderer {
                 let fence = if equation.display_mode() { "$$" } else { "$" };
                 let _ = writeln!(out, "{fence}{}{fence}", equation.latex_source());
             }
-            Block::CodeBlock {
-                language, text, ..
-            } => {
+            Block::CodeBlock { language, text, .. } => {
                 indent_line(out, indent);
                 let fence = code_fence(text);
                 let _ = writeln!(out, "{fence}{}", language.as_deref().unwrap_or_default());
@@ -203,12 +199,15 @@ impl Renderer {
 
         let width = rows
             .iter()
-            .map(|row| row.iter().map(|cell| cell.col_span() as usize).sum::<usize>())
+            .map(|row| {
+                row.iter()
+                    .map(|cell| cell.col_span() as usize)
+                    .sum::<usize>()
+            })
             .max()
             .unwrap_or(1)
             .max(1);
-        let mut grid: Vec<Vec<Option<String>>> =
-            vec![vec![None; width]; rows.len()];
+        let mut grid: Vec<Vec<Option<String>>> = vec![vec![None; width]; rows.len()];
 
         for (row_index, row) in rows.iter().enumerate() {
             let mut column = 0usize;
@@ -252,7 +251,6 @@ impl Renderer {
                 out.push('\n');
             }
         }
-
     }
 
     fn cell(&mut self, cell: &TableCell) -> String {
@@ -288,8 +286,7 @@ impl Renderer {
                 }
                 Inline::Code { text } => out.push_str(&code_span(text)),
                 Inline::Citation { keys } => {
-                    let rendered: Vec<String> =
-                        keys.iter().map(|key| format!("@{key}")).collect();
+                    let rendered: Vec<String> = keys.iter().map(|key| format!("@{key}")).collect();
                     let _ = write!(out, "[{}]", rendered.join("; "));
                 }
                 Inline::CrossRef { label } => {
@@ -317,7 +314,8 @@ fn escape_text(text: &str) -> String {
         let content = line.strip_suffix('\n').unwrap_or(line);
         let marker_len = list_marker_len(content);
         for (index, character) in content.chars().enumerate() {
-            if (index == 0 && matches!(content.as_bytes().first(), Some(b'-' | b'+'))
+            if (index == 0
+                && matches!(content.as_bytes().first(), Some(b'-' | b'+'))
                 && content.as_bytes().get(1) == Some(&b' '))
                 || (marker_len > 0 && index == marker_len)
             {
@@ -333,13 +331,13 @@ fn escape_text(text: &str) -> String {
 }
 
 fn escape_character(escaped: &mut String, character: char) {
-        if matches!(
-            character,
-            '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>' | '#' | '|' | '$' | '@'
-        ) {
-            escaped.push('\\');
-        }
-        escaped.push(character);
+    if matches!(
+        character,
+        '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>' | '#' | '|' | '$' | '@'
+    ) {
+        escaped.push('\\');
+    }
+    escaped.push(character);
 }
 
 fn list_marker_len(line: &str) -> usize {
@@ -347,7 +345,10 @@ fn list_marker_len(line: &str) -> usize {
     if matches!(bytes, [b'-', b' ', ..] | [b'+', b' ', ..]) {
         return 0;
     }
-    let digits = bytes.iter().take_while(|byte| byte.is_ascii_digit()).count();
+    let digits = bytes
+        .iter()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
     if digits > 0 && bytes.get(digits..digits + 2) == Some(b". ") {
         digits
     } else {

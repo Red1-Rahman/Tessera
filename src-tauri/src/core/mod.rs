@@ -15,13 +15,13 @@
 pub mod diff;
 /// DOCX (OOXML) reader and writer (`docs/specs.md`, section 2).
 pub mod docx;
-/// Markdown and plain-text export renderers.
-pub mod export;
 /// Tessera's error surface (`TesseraError` and friends), as shaped in
 /// `docs/contracts.md`, section 2. Defined here rather than in
 /// `commands/` so `core/` can return it without depending on the IPC
 /// layer; `commands/` re-exports it.
 pub mod error;
+/// Markdown and plain-text export renderers.
+pub mod export;
 /// LaTeX parser and printer (`docs/specs.md`, section 1).
 pub mod latex;
 /// The Document Model types (`docs/contracts.md`, section 1).
