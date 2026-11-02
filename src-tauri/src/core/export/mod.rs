@@ -11,3 +11,5 @@
 
 /// Markdown export (`parallel-task06-C`).
 pub mod markdown;
+/// Plain text export (`parallel-task06-D`).
+pub mod plaintext;
