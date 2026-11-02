@@ -271,7 +271,11 @@ frontend can discriminate without string matching.
 `src-tauri/src/commands/` for the IPC surface, because `core/` code
 returns `TesseraError` directly and must not depend on `commands/` (see
 `docs/architecture.md`, "Crate and module boundaries"). The wire shapes
-below are unchanged by that placement.
+below are unchanged by that placement. The edit request/result types
+(`LatexEditRequest`, `DocxEditRequest`, `DmPatch`, `DocSyncResult`) are
+defined in `src-tauri/src/core/diff.rs`; project lifecycle types
+(`ProjectState`, `NewProjectRequest`) are defined in
+`src-tauri/src/core/project.rs`. The command layer marshals them.
 
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
@@ -308,6 +312,25 @@ pub struct SourceSpan {
 
 ```rust
 #[derive(Debug, Serialize, Deserialize)]
+pub struct ProjectState {
+    pub path: String,
+    pub document: Document,
+    pub last_edited_pane: Pane,
+    /// Asset paths relative to `.tessera/assets`.
+    pub assets: Vec<String>,
+    /// Non-fatal problems found while loading, such as a reconstructed
+    /// `project.json` or opaque content in `main.tex`.
+    pub warnings: Vec<SyncWarning>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NewProjectRequest {
+    pub path: String,
+    /// Optional initial document title. Defaults to `Untitled`.
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct LatexEditRequest {
     pub base_version: DocVersion,
     pub full_source: String,
@@ -329,13 +352,23 @@ pub enum DmPatch {
     Insert { path: Vec<usize>, index: usize, block: Block },
     Remove { path: Vec<usize>, index: usize },
 }
+```
 
+In this version `DmPatch` paths address top-level body blocks: `Replace`
+carries exactly one index in `path`, while `Insert` and `Remove` carry
+an empty `path` and use `index`. Nested list, quote, and table-cell paths
+are rejected with `ValidationError` rather than guessed at; a later
+schema version can widen the path grammar without changing the current
+meaning.
+
+```rust
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DocSyncResult {
     pub new_version: DocVersion,
     pub document: Document,
     /// Rendered LaTeX source for the LaTeX pane, always present so the
-    /// pane that did not originate the edit can refresh.
+    /// pane that did not originate the edit can refresh. For a
+    /// LaTeX-origin edit this is the source the user typed.
     pub latex_render: String,
     pub warnings: Vec<SyncWarning>,
 }

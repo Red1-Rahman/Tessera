@@ -11,6 +11,8 @@
 //! renderers, and diff engine. Nothing in this module may depend on
 //! Tauri, a webview, or the network.
 
+/// Document Model diffing, patch application, and sync loss detection.
+pub mod diff;
 /// DOCX (OOXML) reader and writer (`docs/specs.md`, section 2).
 pub mod docx;
 /// Tessera's error surface (`TesseraError` and friends), as shaped in
@@ -22,3 +24,5 @@ pub mod error;
 pub mod latex;
 /// The Document Model types (`docs/contracts.md`, section 1).
 pub mod model;
+/// Project directory I/O and the in-memory editing session.
+pub mod project;

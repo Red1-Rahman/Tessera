@@ -139,6 +139,15 @@ impl Document {
         &mut self.body
     }
 
+    /// Replaces the document's metadata, keeping the current version.
+    ///
+    /// Used by the sync engine when a LaTeX pane edit re-parses the
+    /// preamble. Callers must pass a value built through
+    /// [`DocMetadata::new`], never a struct literal from untrusted input.
+    pub fn set_metadata(&mut self, metadata: DocMetadata) {
+        self.metadata = metadata;
+    }
+
     /// Replaces the body, keeping the current version. Used by the sync
     /// engine when a pane edit produces a whole new body.
     pub fn set_body(&mut self, body: Vec<Block>) {

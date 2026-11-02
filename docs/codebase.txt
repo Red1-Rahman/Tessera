@@ -72,7 +72,8 @@ src-tauri/                                        Backend: Rust, Tauri app shell
       mod.rs
       error.rs                                                TesseraError, Pane, SourceSpan, ExportFormat (docs/contracts.md section 2), re-exported from commands/.
       model.rs                                                Document Model type definitions (docs/contracts.md section 1).
-      diff.rs                                                  Document Model diffing for incremental pane updates.
+      diff.rs                                                  Document Model diffing, patch application, and sync loss detection.
+      project.rs                                               Project directory I/O and the in-memory editing session.
       latex/
         parser.rs                                              LaTeX source -> Document Model.
         printer.rs                                              Document Model -> LaTeX source.

@@ -25,6 +25,16 @@ pub mod core;
 /// here means the app cannot start at all, before any Tessera code runs.
 pub fn run() {
     tauri::Builder::default()
+        .manage(std::sync::Mutex::new(
+            crate::core::project::ProjectSession::new(),
+        ))
+        .invoke_handler(tauri::generate_handler![
+            commands::document::open_project,
+            commands::document::new_project,
+            commands::document::parse_latex,
+            commands::document::apply_docx_edit,
+            commands::document::save_project,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running the Tessera application");
 }
