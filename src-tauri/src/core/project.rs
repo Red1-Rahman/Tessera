@@ -23,11 +23,12 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::core::diff::{
-    apply_dm_patches, check_base_version, document_sync_warnings, initial_document_warnings,
-    DocSyncResult, DocxEditRequest, LatexEditRequest,
+    apply_dm_patches, check_base_version, document_labels, document_sync_warnings,
+    initial_document_warnings, DocSyncResult, DocxEditRequest, LatexEditRequest,
 };
 use crate::core::docx::writer::write_docx_file;
 use crate::core::error::{Pane, TesseraError};
+use crate::core::latex::highlight::{highlight, HighlightRequest, HighlightToken};
 use crate::core::latex::{parse_latex, print_latex};
 use crate::core::model::{Author, Block, DocMetadata, Document, SyncWarning};
 
@@ -280,6 +281,16 @@ impl ProjectSession {
             latex_render: print_latex(&project.document),
             warnings,
         })
+    }
+
+    /// Classifies Okabe-Ito tokens for a LaTeX pane range, using the
+    /// current document's labels to resolve cross-references.
+    pub fn get_highlight_tokens(
+        &self,
+        request: &HighlightRequest,
+    ) -> Result<Vec<HighlightToken>, TesseraError> {
+        let document = self.document()?;
+        highlight(&request.source, &document_labels(document))
     }
 
     fn project_ref(&self) -> Result<&Project, TesseraError> {
