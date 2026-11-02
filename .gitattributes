@@ -1,0 +1,11 @@
+# LaTeX fixtures are parsed as source text and their line endings are part
+# of the snapshot contract. Force LF on every platform so Windows checkouts
+# produce the same Document Model as Linux and macOS CI.
+tests/fixtures/latex/*.tex text eol=lf
+
+# insta snapshots are generated from those fixtures and must use LF too.
+src-tauri/tests/snapshots/*.snap text eol=lf
+
+# proptest replay seeds are compared by proptest itself; keep them stable
+# across platforms.
+src-tauri/tests/*.proptest-regressions text eol=lf

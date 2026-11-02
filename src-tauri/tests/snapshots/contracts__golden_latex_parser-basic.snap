@@ -133,10 +133,10 @@ expression: "serde_json::to_value(&parsed_doc).unwrap()"
       "a4paper"
     ],
     "preamble_raw": [
-      "\\usepackage{graphicx}\r\n"
+      "\\usepackage{graphicx}\n"
     ],
     "title": "Parser fixture"
   },
-  "trailing_trivia": "\r\n",
+  "trailing_trivia": "\n",
   "version": 0
 }

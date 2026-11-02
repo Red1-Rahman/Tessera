@@ -226,6 +226,17 @@ fn parse_blocks(source: &str, class: &str) -> Result<Vec<Block>, TesseraError> {
                     | "("
                     | "verb"
                     | "\\"
+                    | "{"
+                    | "}"
+                    | "#"
+                    | "$"
+                    | "%"
+                    | "&"
+                    | "_"
+                    | " "
+                    | "^"
+                    | "~"
+                    | "textbackslash"
             ) {
                 let end = next_block_boundary(rest);
                 blocks.push(Block::paragraph(parse_inlines(rest[..end].trim())?));
@@ -560,8 +571,15 @@ fn parse_inlines(source: &str) -> Result<Vec<Inline>, TesseraError> {
         if !text.is_empty() && !text.trim().is_empty() {
             out.push(Inline::text(text)?);
         } else if !text.is_empty() && !out.is_empty() && end < source.len() {
+            // Whitespace between two inline nodes is a single visual space
+            // in TeX, so collapse it to one. When the previous node is a
+            // text run, however, the whitespace belongs to that run and
+            // must be preserved exactly: the printer emits escaped
+            // characters such as `\_` inline, which splits a single run
+            // into several text segments. Collapsing those segments would
+            // lose the spacing inside the original text run.
             match out.last_mut() {
-                Some(Inline::Text { text }) => text.push(' '),
+                Some(Inline::Text { text: previous }) => previous.push_str(&text),
                 _ => out.push(Inline::Text {
                     text: " ".to_string(),
                 }),
@@ -949,5 +967,22 @@ mod tests {
             Some(r"a\{b\}c".into())
         );
         assert_eq!(unescape_latex_text(r"A\_B\^{}\~{}"), "A_B^~");
+    }
+
+    #[test]
+    fn preserves_spacing_between_escaped_characters() {
+        let inlines = parse_inlines(r"A\_  \_A").expect("escaped underscores");
+        assert_eq!(inlines, vec![Inline::text("A_  _A".into()).expect("text")]);
+    }
+
+    #[test]
+    fn parses_paragraph_starting_with_an_escaped_character() {
+        let blocks = parse_blocks(r"\_ and \%", "article").expect("escaped paragraph");
+        assert_eq!(
+            blocks,
+            vec![Block::paragraph(vec![
+                Inline::text("_ and %".into()).expect("text")
+            ])]
+        );
     }
 }

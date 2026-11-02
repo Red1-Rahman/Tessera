@@ -60,7 +60,7 @@ expression: "serde_json::to_value(&parsed_doc).unwrap()"
           "type": "Underline"
         },
         {
-          "text": ",\r\n",
+          "text": ",\n",
           "type": "Text"
         },
         {
@@ -155,6 +155,6 @@ expression: "serde_json::to_value(&parsed_doc).unwrap()"
     "preamble_raw": [],
     "title": "Printer fixture"
   },
-  "trailing_trivia": "\r\n",
+  "trailing_trivia": "\n",
   "version": 0
 }
