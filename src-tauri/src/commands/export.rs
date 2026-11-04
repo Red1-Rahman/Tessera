@@ -21,12 +21,19 @@ pub async fn export(
     state: State<'_, AppState>,
     request: ExportRequest,
 ) -> Result<ExportResult, TesseraError> {
-    let (document, assets_dir) = {
-        let session = state.lock().map_err(|_| TesseraError::IoError {
-            path: "session".to_string(),
-            message: "the project session lock was poisoned".to_string(),
-        })?;
-        (session.document()?.clone(), session.assets_dir()?)
-    };
-    export::export_document(&document, &request, &assets_dir)
+    export_with_session(&state, &request)
+}
+
+/// Exports from the session shared with the Tauri command handler.
+pub fn export_with_session(
+    session: &AppState,
+    request: &ExportRequest,
+) -> Result<ExportResult, TesseraError> {
+    let session = session.lock().map_err(|_| TesseraError::IoError {
+        path: "session".to_string(),
+        message: "the project session lock was poisoned".to_string(),
+    })?;
+    let document = session.document()?.clone();
+    let assets_dir = session.assets_dir()?;
+    export::export_document(&document, request, &assets_dir)
 }

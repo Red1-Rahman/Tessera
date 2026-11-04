@@ -26,10 +26,8 @@ use crate::core::project::{NewProjectRequest, ProjectSession, ProjectState};
 /// Tauri-managed state for one application window.
 pub type AppState = Mutex<ProjectSession>;
 
-fn lock_session<'a>(
-    state: &'a State<'_, AppState>,
-) -> Result<MutexGuard<'a, ProjectSession>, TesseraError> {
-    state.lock().map_err(|_| TesseraError::IoError {
+fn lock_session<'a>(session: &'a AppState) -> Result<MutexGuard<'a, ProjectSession>, TesseraError> {
+    session.lock().map_err(|_| TesseraError::IoError {
         path: "session".to_string(),
         message: "the project session lock was poisoned".to_string(),
     })
@@ -41,7 +39,15 @@ pub fn open_project(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<ProjectState, TesseraError> {
-    lock_session(&state)?.open_project(&path)
+    open_project_with_session(&state, &path)
+}
+
+/// Opens a project using the session shared with the Tauri command handler.
+pub fn open_project_with_session(
+    session: &AppState,
+    path: &str,
+) -> Result<ProjectState, TesseraError> {
+    lock_session(session)?.open_project(path)
 }
 
 /// Creates a new project directory with a starter `main.tex`.
@@ -50,7 +56,15 @@ pub fn new_project(
     state: State<'_, AppState>,
     request: NewProjectRequest,
 ) -> Result<ProjectState, TesseraError> {
-    lock_session(&state)?.new_project(&request)
+    new_project_with_session(&state, &request)
+}
+
+/// Creates a project using the session shared with the Tauri command handler.
+pub fn new_project_with_session(
+    session: &AppState,
+    request: &NewProjectRequest,
+) -> Result<ProjectState, TesseraError> {
+    lock_session(session)?.new_project(request)
 }
 
 /// Applies a LaTeX pane edit and returns the updated document.
@@ -59,7 +73,15 @@ pub fn parse_latex(
     state: State<'_, AppState>,
     request: LatexEditRequest,
 ) -> Result<DocSyncResult, TesseraError> {
-    lock_session(&state)?.parse_latex(&request)
+    parse_latex_with_session(&state, &request)
+}
+
+/// Applies a LaTeX edit using the session shared with the Tauri command handler.
+pub fn parse_latex_with_session(
+    session: &AppState,
+    request: &LatexEditRequest,
+) -> Result<DocSyncResult, TesseraError> {
+    lock_session(session)?.parse_latex(request)
 }
 
 /// Applies DOCX pane patches and returns the refreshed LaTeX render.
@@ -68,13 +90,26 @@ pub fn apply_docx_edit(
     state: State<'_, AppState>,
     request: DocxEditRequest,
 ) -> Result<DocSyncResult, TesseraError> {
-    lock_session(&state)?.apply_docx_edit(&request)
+    apply_docx_edit_with_session(&state, &request)
+}
+
+/// Applies DOCX patches using the session shared with the Tauri command handler.
+pub fn apply_docx_edit_with_session(
+    session: &AppState,
+    request: &DocxEditRequest,
+) -> Result<DocSyncResult, TesseraError> {
+    lock_session(session)?.apply_docx_edit(request)
 }
 
 /// Writes `main.tex`, `main.docx`, and `.tessera/project.json`.
 #[tauri::command]
 pub fn save_project(state: State<'_, AppState>) -> Result<(), TesseraError> {
-    lock_session(&state)?.save_project()
+    save_project_with_session(&state)
+}
+
+/// Saves the current project using the session shared with the Tauri command handler.
+pub fn save_project_with_session(session: &AppState) -> Result<(), TesseraError> {
+    lock_session(session)?.save_project()
 }
 
 /// Returns Okabe-Ito token categories for a LaTeX source range.
@@ -83,5 +118,13 @@ pub fn get_highlight_tokens(
     state: State<'_, AppState>,
     request: HighlightRequest,
 ) -> Result<Vec<HighlightToken>, TesseraError> {
-    lock_session(&state)?.get_highlight_tokens(&request)
+    get_highlight_tokens_with_session(&state, &request)
+}
+
+/// Highlights source using the session shared with the Tauri command handler.
+pub fn get_highlight_tokens_with_session(
+    session: &AppState,
+    request: &HighlightRequest,
+) -> Result<Vec<HighlightToken>, TesseraError> {
+    lock_session(session)?.get_highlight_tokens(request)
 }
