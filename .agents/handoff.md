@@ -21,6 +21,43 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-04: Task 08-A frontend IPC and document store
+
+### Changes
+
+- Completed Task 08-A in commit `60e6c12`
+  (`frontend(task08B): add IPC commands and document store with sync functionality`).
+- Added the typed Tauri command wrappers and frontend contract types in
+  `src/ipc/commands.ts`. This is the only frontend file that imports
+  `@tauri-apps/api/core`.
+- Added `src/state/documentStore.ts` with project loading, subscriptions,
+  stale sync-result rejection, undo and redo stacks, and the two 250ms
+  debounce constants required by `docs/conventions.md`.
+- Added a restore-sync option for undo/redo follow-up results. Restore
+  results update the document and store version without adding to or clearing
+  either history stack.
+- Kept the store version monotonic across `undo()` and `redo()`, while
+  preserving the restored document's own version.
+- Added `MAX_UNDO_DEPTH = 100` and bounded normal sync history to that
+  depth. The no-current-document path does not add an undo entry.
+- Added unit tests for every command wrapper, stale and out-of-order sync
+  responses, listener notifications, undo/redo behavior, restore syncs,
+  stale responses after undo, redo clearing, and undo depth limits.
+
+### Verification and remaining limitations
+
+- `npm test -- --run` passed: 3 test files and 20 tests.
+- `npm run typecheck` passed.
+- `npm run lint -- --quiet` passed.
+- `git diff --check` passed before the commit.
+- `npm run format:check` still reports formatting warnings across the
+  repository, including the newly added frontend files. No formatting-only
+  repository-wide rewrite was made.
+- Task 08-B frontend shell work remains separate and can proceed without
+  changing `src/ipc/` or `src/state/`.
+
+---
+
 ## 2026-11-04: Task 07 command layer completion
 
 ### Changes
