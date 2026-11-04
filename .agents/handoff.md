@@ -27,31 +27,37 @@ history and that file stays rules.
 
 - Registered `commands::export::export` and
   `commands::document::get_highlight_tokens` in `src-tauri/src/lib.rs`.
-- Added `src-tauri/tests/commands_integration_tests.rs` using Tauri's
-  mock runtime. It covers new/open/edit/save/highlight, file export to all
-  five formats, a Markdown clipboard payload, and export error paths.
+- Added session helpers shared by each document/export Tauri handler and
+  `src-tauri/tests/commands_integration_tests.rs`. The tests cover
+  new/open/edit/save/highlight, file export to all five formats, a
+  Markdown clipboard payload, and export error paths.
 - Clarified in `docs/specs.md` that only text formats return clipboard
   payloads. DOCX and PDF require a file destination.
-- Enabled Tauri's existing `test` feature for dev builds. No crate was
-  added.
+- Added `ProjectSession::assets_dir()` for the export command.
+- Reconciled `Cargo.lock` with the existing `printpdf = "=0.7.0"`
+  dependency. No crate was added. Kept printpdf 0.7 because the PDF
+  implementation uses that API, the cached 0.11.3 source requires Rust
+  1.88, and the project declares Rust 1.77.2. The 0.11.1 source was not
+  available locally, and network access is prohibited.
 
-### Verification and remaining environment issue
+### Verification and remaining limitations
 
 - `cargo fmt --manifest-path src-tauri/Cargo.toml --check` and
-  `git diff --check` passed.
-- `cargo clippy` and `cargo test` could not resolve the offline registry
-  index entry for `owned_ttf_parser`, required by the manifest's
-  `printpdf 0.7.0`. The lockfile still records `printpdf 0.11.3` and is
-  inconsistent with the manifest. An attempted Cargo resolution rewrote
-  the lockfile; that generated change was restored. No network access was
-  attempted.
-- `cargo tree` failed for the same resolution issue, so the full
-  dependency network-capability check remains unverified. `cargo-deny`
-  is not installed. The cached `printpdf 0.7.0` manifest declares MIT;
-  transitive license compatibility remains unaudited.
-- The local environment has no TeX engine. The TeX subprocess path was
-  not run end to end. The built-in PDF and command integration tests are
-  present but could not be executed because dependency resolution failed.
+  `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --
+  -D warnings` passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml` passed: 40 unit,
+  2 command integration, 14 contract, 8 Markdown, 7 PDF, 4 plain text,
+  4 highlighting, 26 model, and 7 sync tests, plus doc tests.
+- `cargo tree --manifest-path src-tauri/Cargo.toml` passed. Searches of
+  the resolved tree found no `reqwest`, `hyper`, `ureq`, `curl`, `isahc`,
+  or `tokio-tungstenite` packages.
+- `cargo-deny` is not installed. The direct `printpdf 0.7.0` manifest
+  declares MIT. A local scan found license expressions for 311 of the 471
+  locked registry packages. The other 160 package sources were not
+  cached, so a complete transitive license audit remains pending. Offline
+  `cargo metadata` could not load `android_system_properties`.
+- The local environment has no TeX engine. The system TeX subprocess path
+  was not run end to end. The fallback PDF path passed its tests.
 - `src/ipc/commands.ts` does not exist yet. Frontend wrappers remain in
   Task 08 scope. `docs/techstack.yml` still lists `pulldown-cmark`, while
   the Markdown renderer is hand-rolled; this drift was left unchanged.
@@ -69,15 +75,12 @@ history and that file stays rules.
 
 ### Verification and remaining environment issue
 
-- `cargo fmt --manifest-path src-tauri/Cargo.toml --check` passed.
-- `cargo clippy` and `cargo test` were run with Cargo offline mode and
-  could not resolve `owned_ttf_parser` required by the manifest's
-  `printpdf = "=0.7.0"` dependency. `Cargo.lock` still records
-  `printpdf 0.11.3`, so the manifest and lockfile are inconsistent.
-  `cargo tree --offline` fails for the same resolution reason. No network
-  access was attempted.
-- `cargo-deny` is not installed. The cached `printpdf 0.7.0` manifest
-  declares MIT, but a complete transitive license audit remains pending.
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check`, Clippy, and
+  the full Rust test suite passed after the lockfile was reconciled during
+  Task 07. The PDF fallback tests cover both repository LaTeX fixtures.
+- `cargo tree` passed with no matches for the network-capable crate names
+  listed above. `cargo-deny` is not installed; a complete transitive
+  license audit remains pending.
 - `docs/techstack.yml` still lists `pulldown-cmark` although Markdown
   export is hand-rolled. This drift was left unchanged.
 
