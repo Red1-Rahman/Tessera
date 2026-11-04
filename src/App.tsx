@@ -418,7 +418,7 @@ function App(): JSX.Element {
       <div className="app-content">
         <SplitPane left={left} right={right} />
       </div>
-      <ExportMenu isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} />
+      <ExportMenu isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} hasDocument={hasDocument} />
     </main>
   );
 }

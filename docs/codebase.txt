@@ -51,9 +51,11 @@ src/                                  Frontend: TypeScript + React, bundled with
     documentStore.ts                       Single store mirroring backend Document Model version. Debounce constants live here.
   ipc/
     commands.ts                            Only file allowed to call Tauri invoke() directly. Typed wrappers for every command in docs/contracts.md section 2.
+    native.ts                              Typed wrappers for the Tauri dialog (save) and clipboard-manager (writeText) plugins, so no component imports a plugin directly.
   components/
     SplitPane.tsx                            Resizable two-pane layout container.
-    ExportMenu.tsx                             Export format picker (LaTeX, DOCX, PDF, Markdown, plain text, clipboard).
+    ExportMenu.tsx                             Export format picker (LaTeX, DOCX, PDF, Markdown, plain text, clipboard), wired to the export command, the save dialog, and the clipboard.
+    ExportMenu.test.tsx                        Component tests for the export menu, mocking the IPC layer.
     Toolbar.tsx                                 Top-level app toolbar.
 
 src-tauri/                                        Backend: Rust, Tauri app shell.
@@ -63,7 +65,7 @@ src-tauri/                                        Backend: Rust, Tauri app shell
   build.rs                                            Tauri build script (embeds config and assets).
   icons/                                              App icons in all platform formats, generated from one source image via `npx tauri icon`.
   capabilities/
-    default.json                                       Capability granted to the main window: core:default only, no HTTP scope.
+    default.json                                       Capability granted to the main window: core:default plus dialog:allow-save and clipboard-manager:allow-write-text for the export menu, no HTTP scope.
   src/
     main.rs                                            App bootstrap entry point; calls tessera_lib::run().
     lib.rs                                             Library crate root: wires core/ and commands/ modules, runs Tauri.

@@ -47,8 +47,13 @@ backend:
         handlers only, never in library-level core/ code, where typed
         errors are required. See docs/conventions.md.
     - name: tauri
-      purpose: Application shell, window management, IPC, clipboard,
-        file dialogs.
+      purpose: Application shell, window management, IPC.
+    - name: tauri-plugin-dialog
+      purpose: Native save dialog used by the export menu to pick file
+        destinations (src/ipc/native.ts).
+    - name: tauri-plugin-clipboard-manager
+      purpose: Clipboard text writes for clipboard export payloads
+        (src/ipc/native.ts). Local-only; no network capability.
     - name: nom
       purpose: Parser combinators for the LaTeX parser
         (core/latex/parser.rs).
@@ -90,8 +95,13 @@ frontend:
     developer experience and editor-widget availability.
   key_packages:
     - name: "@tauri-apps/api"
-      purpose: Typed wrappers for invoke(), clipboard, dialog, fs scope
-        calls used from src/ipc/commands.ts.
+      purpose: Typed wrappers for invoke() calls used from src/ipc/commands.ts.
+    - name: "@tauri-apps/plugin-dialog"
+      purpose: Native save dialog for export destinations, wrapped in
+        src/ipc/native.ts.
+    - name: "@tauri-apps/plugin-clipboard-manager"
+      purpose: Clipboard text writes for clipboard export payloads,
+        wrapped in src/ipc/native.ts.
     - name: codemirror (6.x)
       purpose: LaTeX pane editor. Chosen for first-class custom
         language/highlight support needed for the Okabe-Ito theme (see

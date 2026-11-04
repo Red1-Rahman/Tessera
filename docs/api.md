@@ -28,13 +28,18 @@ backend operations. Only these commands are registered:
 | `export` | Export current state to a file or return clipboard-ready text. |
 
 No separate backend operation currently exists for project dialogs,
-clipboard writes, DOCX import from a standalone file, image upload, undo,
-redo, or granular nested-block editing. Do not invent an `invoke` command
-for these actions. A UI feature that needs one requires a registered
-command and corresponding contract, spec, and implementation first. File
-and directory chooser dialogs are not registered in the current
-capabilities; `open_project` and `new_project` accept paths supplied by
-the caller.
+DOCX import from a standalone file, image upload, undo, redo, or
+granular nested-block editing. Do not invent an `invoke` command for
+these actions. A UI feature that needs one requires a registered
+command and corresponding contract, spec, and implementation first.
+The native save dialog and clipboard writes are frontend-side plugin
+capabilities, not backend commands: `@tauri-apps/plugin-dialog`
+(provided by `tauri-plugin-dialog`, permitted as `dialog:allow-save`)
+supplies the save dialog, and `@tauri-apps/plugin-clipboard-manager`
+(provided by `tauri-plugin-clipboard-manager`, permitted as
+`clipboard-manager:allow-write-text`) writes text to the operating
+system clipboard. Both are wrapped in `src/ipc/native.ts`; components
+never import a Tauri plugin directly.
 
 Tauri serializes Rust command arguments using camelCase argument names at
 the command boundary. For example, a Rust parameter named `request` is

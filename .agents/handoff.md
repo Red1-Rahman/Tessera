@@ -21,6 +21,68 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-04: Task 10 export and clipboard wiring
+
+### Changes
+
+- Wired `src/components/ExportMenu.tsx` to the real `export` command.
+  The five file formats open the native save dialog
+  (`@tauri-apps/plugin-dialog`, one format-specific filter each), pass
+  the chosen path as `destination`, and show `Saved to {path}` in a new
+  non-blocking status line. The clipboard entry exports Markdown with
+  `destination: null` and writes the `ClipboardPayload` through
+  `@tauri-apps/plugin-clipboard-manager`. Per user decision, the menu
+  keeps the single Markdown clipboard entry from parallel-task08-B
+  rather than per-format clipboard buttons.
+- Added `src/ipc/native.ts` wrapping both plugins so no component
+  imports a Tauri plugin directly, matching the `src/ipc/commands.ts`
+  boundary rule.
+- Implemented the PDF fallback caveat: a `WrittenToFile` PDF result with
+  `pdf_engine: {"type":"BuiltIn"}` (or a missing engine, treated as
+  fallback) sets the PDF entry's note slot to "Basic PDF (no TeX engine
+  found)"; `SystemTeX` results show `System TeX: {program}`.
+- Export errors surface as a `role="alert"` line inside the menu,
+  discriminated by `TesseraError.kind` (ExportError, IoError,
+  ValidationError, ParseError, StaleVersion), never a modal. Entries
+  are disabled when no project is open or while an export is in flight.
+- Added `tauri-plugin-dialog` and `tauri-plugin-clipboard-manager` Rust
+  crates and the matching npm packages, registered both plugins in
+  `src-tauri/src/lib.rs`, and granted only `dialog:allow-save` and
+  `clipboard-manager:allow-write-text` in
+  `src-tauri/capabilities/default.json`. Both plugins are Apache-2.0 OR
+  MIT / MIT; `cargo tree` found no network-capable crate.
+- Added `src/components/ExportMenu.test.tsx` (11 tests, IPC mocked):
+  entry rendering, disabled-without-document, save-dialog filter and
+  path handoff, dialog cancel, clipboard write, both PDF engine notes,
+  error alert, in-flight disabling, and unknown-error fallback.
+- Updated `docs/api.md` (plugins now registered, replacing the "dialogs
+  are not registered" note), `docs/codebase.txt`, and
+  `docs/techstack.yml`.
+
+### Verification
+
+- `npm run typecheck`, `npm run lint -- --quiet` passed.
+- `npm test -- --run --maxWorkers=1` passed: 7 files and 46 tests.
+- `npm run test:e2e -- --workers=1` passed: 3 Playwright tests.
+- `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and
+  `cargo test -j 2` passed (the `-j 2` matters here: default parallel
+  linking ran out of paging file space, os error 1455).
+- `git diff --check` passed. No em dashes in changed files.
+
+### Notes for the next session
+
+- The first e2e run crashed Vite's file watcher with EBUSY on
+  `src-tauri\target\debug\deps\tessera.exe` and left a server holding
+  port 1420; killing the listener and rerunning passed. Expect this
+  after any cargo build that produces `tessera.exe` while Vite runs.
+- `src/App.tsx` and `src/styles.css` fail `prettier --check` both before
+  and after this task (pre-existing repo-wide drift). Only the new
+  files were formatted; a repo-wide format pass is still pending.
+- `cargo-deny` remains uninstalled; the transitive license audit is
+  still pending, but the two newly added crates were checked directly.
+
+---
+
 ## 2026-11-04: npm audit fix --force
 
 - 12 moderate severity vulnerabilities still remaining

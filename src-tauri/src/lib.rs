@@ -25,6 +25,8 @@ pub mod core;
 /// here means the app cannot start at all, before any Tessera code runs.
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(std::sync::Mutex::new(
             crate::core::project::ProjectSession::new(),
         ))

@@ -128,3 +128,15 @@ this file as-is and keep appending to it.
 - Re-read the exact current target before applying a patch after a long
   session or after other edits; stale context often makes a plausible
   patch fail or land against the wrong structure.
+- On memory-constrained machines, retry a failing large build with
+  limited parallelism (`cargo test -j 2`) before suspecting the code;
+  out-of-paging-file errors (os error 1455) and "invalid metadata" or
+  "newer version of crate" messages are symptoms of parallel linking,
+  not of a broken dependency tree.
+- When a dev server under a test runner crashes mid-run, it can leave
+  its port bound; kill the listener on the port before retrying, or the
+  next run fails with "port already in use" and masks the real result.
+- When prepending an entry to a log file by replacing a heading anchor,
+  include the consumed heading at the end of the replacement text, or
+  the previous entry loses its header; re-read the edited region
+  afterward to confirm.

@@ -344,6 +344,16 @@ body {
   margin-top: 2px;
 }
 
+.export-menu-status {
+  margin: var(--space-md) 0 0;
+  font-size: 0.8125rem;
+  color: var(--chrome-text-muted);
+}
+
+.export-menu-status-error {
+  color: var(--ok-vermillion);
+}
+
 /* Placeholders */
 .pane-placeholder {
   padding: var(--space-lg);

@@ -39,6 +39,8 @@ quick-xml = "0.37"
 zip = "2"
 printpdf = "=0.7.0"
 which = "8"
+tauri-plugin-dialog = "2"
+tauri-plugin-clipboard-manager = "2"
 
 [dev-dependencies]
 insta = { version = "1", features = ["json"] }
