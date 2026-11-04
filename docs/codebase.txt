@@ -82,6 +82,7 @@ src-tauri/                                        Backend: Rust, Tauri app shell
         reader.rs                                              DOCX (OOXML zip) -> Document Model.
         writer.rs                                              Document Model -> DOCX (OOXML zip), targets Word built-in styles.
       export/
+        mod.rs                                                   Export request validation and multi-format dispatch.
         pdf.rs                                                   PDF export: system TeX engine detection + built-in typesetter fallback.
         markdown.rs                                             Markdown export.
         plaintext.rs                                              Plain text export.
@@ -93,6 +94,7 @@ tests/                                                      Top-level integratio
 src-tauri/tests/                                           Rust integration tests (kept alongside the crate per Cargo convention).
   contracts.rs                                              Golden-file, round-trip (proptest), and snapshot (insta) tests for docs/contracts.md types.
   export_markdown_tests.rs                                  Markdown export renderer test suite (Task 06-C).
+  export_pdf_tests.rs                                       PDF export renderer test suite (Task 06-B).
   export_plaintext_tests.rs                                 Plain text export renderer test suite (Task 06-D).
   highlight_tests.rs                                        Okabe-Ito syntax highlighting integration tests (Task 06-A).
   model_tests.rs                                             Document Model validation and serde shape tests (serial-task02).

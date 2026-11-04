@@ -153,13 +153,15 @@ Two tiers, chosen automatically, with the choice visible to the user:
 
 1. **System TeX engine**, if the core detects a working `pdflatex`,
    `xelatex`, or `lualatex` on `PATH` at export time. The core prints DM to
-   LaTeX, writes it to a temp directory, and shells out locally. This is
+   LaTeX, writes it to a temp directory, disables shell escape, and runs
+   the selected executable locally twice to resolve references. This is
    not a network call; it is a local subprocess the user already has
    installed; it remains fully offline.
 2. **Built-in typesetter** (`core/export/pdf.rs`), used when no TeX engine
    is found. Produces a PDF directly from the DM for the supported subset
-   in `docs/specs.md`. Lower typographic fidelity than real TeX, clearly
-   labeled in the UI as "Basic PDF (no TeX engine found)."
+   in `docs/specs.md`. It uses WinAnsi base fonts, flattens inline styling,
+   and uses labeled placeholders for figures. Characters outside WinAnsi
+   may not render correctly. The returned `pdf_engine` identifies this tier.
 
 Neither path downloads a TeX distribution. Tessera does not install or
 manage TeX; that remains the user's responsibility, documented in the

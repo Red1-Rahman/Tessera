@@ -407,18 +407,26 @@ pub struct HighlightToken {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExportFormat { Latex, Docx, Pdf, Markdown, PlainText }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ExportRequest {
     pub format: ExportFormat,
-    /// None means "return bytes for clipboard", Some means "write to
-    /// this path".
+    /// None means return text for clipboard, Some means write to this path.
+    /// Binary formats require a destination.
     pub destination: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type")]
+pub enum PdfEngine { SystemTeX { program: String }, BuiltIn }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind")]
 pub enum ExportResult {
-    WrittenToFile { path: String },
+    WrittenToFile {
+        path: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pdf_engine: Option<PdfEngine>,
+    },
     ClipboardPayload { format: ExportFormat, content: String },
 }
 ```

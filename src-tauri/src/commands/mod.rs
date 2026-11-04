@@ -6,10 +6,8 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-//! The IPC surface: thin Tauri command handlers that validate input,
-//! call into `core/`, and map results to `Result<T, TesseraError>` (see
-//! `docs/contracts.md`, section 2). Handlers stay free of business logic;
-//! anything more than a few lines belongs in `core/`.
+//! The IPC surface. Handlers validate input, call into `core/`, and marshal
+//! results to the frontend.
 
 pub use crate::core::error::{ExportFormat, Pane, SourceSpan, TesseraError};
 
