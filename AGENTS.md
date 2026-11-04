@@ -91,6 +91,10 @@ expanded version with exact commands.
       touches either.
 - [ ] No em dashes in anything written for this change.
 - [ ] New source files carry the GPL header.
+- [ ] Dependency licenses checked (for example cargo deny check licenses). The hard constraint requires this, but the checklist only covers the network check.
+- [ ] No scratch or probe files left behind (grep -r "Temporary probe" src-tauri).
+- [ ] docs/codebase.txt updated if files were added, moved or removed.
+- [ ] Handoff entry added if the next session needs it.
 
 ## When you are unsure
 

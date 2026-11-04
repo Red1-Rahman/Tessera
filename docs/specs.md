@@ -211,7 +211,7 @@ it; it only ever sees one `Document`.
 | LaTeX (`.tex`) | DM printed via `core/latex/printer.rs`. Always available, always exact. |
 | DOCX (`.docx`) | DM written via `core/docx/writer.rs`. Always available. |
 | PDF | System TeX engine if present, else built-in typesetter. See `docs/architecture.md`, "PDF export strategy." |
-| Markdown (`.md`) | DM rendered via `core/export/markdown.rs`. Math renders as raw LaTeX math delimited by `$...$`/`$$...$$` (Pandoc-compatible convention); `Opaque` blocks render as a fenced comment noting what was dropped. |
+| Markdown (`.md`) | DM rendered via `core/export/markdown.rs`. Math renders as raw LaTeX math delimited by `$...$`/`$$...$$` (Pandoc-compatible convention); `Opaque` blocks render as an HTML comment (`<!-- Opaque {origin} block omitted from Markdown export: {summary} -->`) noting what was dropped. Table cells with `col_span` or `row_span` greater than 1 are flattened for standard Markdown compatibility: `col_span` repeats cell content across spanned columns, while `row_span` places content in the initial row and leaves spanned cells in subsequent rows empty. |
 | Plain text (`.txt`) | DM rendered via `core/export/plaintext.rs`. All formatting, math, and structure is flattened to text; headings become underlined or numbered lines; this is lossy by nature and labeled as such in the export menu. |
 | Clipboard | Any of the above formats, written to the system clipboard instead of a file, via Tauri's clipboard API. |
 
