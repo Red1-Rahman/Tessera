@@ -23,7 +23,7 @@ use which::which_in;
 use crate::core::error::{ExportFormat, TesseraError};
 use crate::core::export::PdfEngine;
 use crate::core::latex::printer;
-use crate::core::model::{Block, Document, HeadingLevel, ListKind, OpaqueOrigin};
+use crate::core::model::{Block, Document, ListKind, OpaqueOrigin};
 
 /// RAII guard to guarantee temporary directory deletion on success or error.
 struct TempDirGuard {
