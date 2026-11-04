@@ -45,10 +45,11 @@ the local filesystem.
 
 ## Status
 
-Pre-1.0. See `docs/specs.md` for the supported LaTeX subset and
-`docs/contracts.md` for the data contracts between the Rust core and the
-frontend. This repository is being developed with AI coding agents in the
-loop; see `AGENTS.md` for how agents are expected to work in this codebase.
+Pre-1.0. See `docs/specs.md` for the supported LaTeX subset,
+`docs/contracts.md` for the data contracts, and `docs/api.md` for the
+frontend/backend integration reference. This repository is being developed
+with AI coding agents in the loop; see `AGENTS.md` for how agents are
+expected to work in this codebase.
 
 ## Tech stack
 
@@ -98,8 +99,8 @@ tessera/
 ```
 
 See `docs/architecture.md` for how the pieces fit together, `docs/specs.md`
-for exactly what LaTeX and DOCX features are supported, and
-`docs/conventions.md` for coding standards.
+for exactly what LaTeX and DOCX features are supported, `docs/api.md` for
+frontend/backend integration, and `docs/conventions.md` for coding standards.
 
 ## License
 

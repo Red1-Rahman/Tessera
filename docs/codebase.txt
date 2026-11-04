@@ -32,6 +32,7 @@ ROOT
 docs/
   architecture.md             System design, module boundaries, sync flow, storage model.
   contracts.md                 Canonical data shapes: Document Model, Tauri IPC, on-disk format.
+  api.md                       Frontend/backend command integration, runtime behavior, and feature support.
   specs.md                      Exact supported LaTeX subset and DOCX mapping rules.
   conventions.md                 Coding standards, network ban, testing policy, style rules.
   techstack.yml                   Dependency list with rationale per choice.
