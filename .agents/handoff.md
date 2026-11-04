@@ -21,6 +21,25 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-04: Task 06-C Markdown export gap completion
+
+### Changes
+
+- Added `src-tauri/tests/export_markdown_tests.rs` covering all Document
+  Model block and inline node types, Math mode conventions (`$...$` / `$$...$$`),
+  `OpaqueBlock` comments, table cell span flattening, lists, code blocks,
+  and footnotes.
+- Updated `docs/specs.md` section 4 to record the table cell span flattening
+  convention (col_span repeats content, row_span leaves empty continuation cells)
+  and aligned the `OpaqueBlock` rendering description with HTML comment output.
+- Updated `docs/codebase.txt` to include `export_markdown_tests.rs`.
+
+### Verification
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check` passed.
+- `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml` passed.
+
 ## 2026-11-02: Review fixes for parser and exports
 
 ### Changes
