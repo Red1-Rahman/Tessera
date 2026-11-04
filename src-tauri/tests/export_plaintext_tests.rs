@@ -90,7 +90,9 @@ fn test_plaintext_export_no_markdown_syntax() {
     assert!(!text.contains("[@sec:intro]"));
 
     // Should contain flattened text
-    assert!(text.contains("bold text and italic text and underlined and let x = 42; and [smith2024] and [sec:intro]"));
+    assert!(text.contains(
+        "bold text and italic text and underlined and let x = 42; and [smith2024] and [sec:intro]"
+    ));
 }
 
 #[test]
@@ -99,15 +101,23 @@ fn test_plaintext_export_lists_no_markdown_markers() {
     let unordered = Block::list(
         ListKind::Unordered,
         vec![
-            vec![Block::paragraph(vec![Inline::text("Bullet One".into()).unwrap()])],
-            vec![Block::paragraph(vec![Inline::text("Bullet Two".into()).unwrap()])],
+            vec![Block::paragraph(vec![
+                Inline::text("Bullet One".into()).unwrap()
+            ])],
+            vec![Block::paragraph(vec![
+                Inline::text("Bullet Two".into()).unwrap()
+            ])],
         ],
     );
     let ordered = Block::list(
         ListKind::Ordered,
         vec![
-            vec![Block::paragraph(vec![Inline::text("Step One".into()).unwrap()])],
-            vec![Block::paragraph(vec![Inline::text("Step Two".into()).unwrap()])],
+            vec![Block::paragraph(vec![
+                Inline::text("Step One".into()).unwrap()
+            ])],
+            vec![Block::paragraph(vec![
+                Inline::text("Step Two".into()).unwrap()
+            ])],
         ],
     );
 
@@ -130,13 +140,17 @@ fn test_plaintext_export_lists_no_markdown_markers() {
 fn test_plaintext_export_table_equation_figure_opaque() {
     let metadata = sample_metadata(None);
     let cell1 = TableCell::new(
-        vec![Block::paragraph(vec![Inline::text("Header 1".into()).unwrap()])],
+        vec![Block::paragraph(vec![
+            Inline::text("Header 1".into()).unwrap()
+        ])],
         1,
         1,
     )
     .unwrap();
     let cell2 = TableCell::new(
-        vec![Block::paragraph(vec![Inline::text("Header 2".into()).unwrap()])],
+        vec![Block::paragraph(vec![
+            Inline::text("Header 2".into()).unwrap()
+        ])],
         1,
         1,
     )

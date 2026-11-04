@@ -12,6 +12,7 @@ use std::path::Path;
 use tessera_lib::core::error::ExportFormat;
 use tessera_lib::core::export::pdf::{detect_tex_engine, export_pdf_with_path_override};
 use tessera_lib::core::export::{export_document, ExportRequest, ExportResult, PdfEngine};
+use tessera_lib::core::latex::parse_latex;
 use tessera_lib::core::model::{Author, Block, DocMetadata, Document, HeadingLevel, Inline};
 
 fn sample_document() -> Document {
@@ -63,6 +64,37 @@ fn test_builtin_pdf_export_creates_valid_pdf_file() {
 }
 
 #[test]
+fn test_builtin_pdf_export_handles_latex_fixtures() {
+    let fixture_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("tests")
+        .join("fixtures")
+        .join("latex");
+    let temp_dir =
+        std::env::temp_dir().join(format!("tessera_test_pdf_fixtures_{}", std::process::id()));
+    fs::create_dir_all(&temp_dir).expect("create fixture PDF output directory");
+
+    for fixture in ["parser-basic.tex", "printer-canonical.tex"] {
+        let source = fs::read_to_string(fixture_dir.join(fixture)).expect("read LaTeX fixture");
+        let document = parse_latex(&source).expect("parse LaTeX fixture");
+        let output = temp_dir.join(fixture.replace(".tex", ".pdf"));
+        let engine = export_pdf_with_path_override(
+            &document,
+            &temp_dir.join("assets"),
+            &output.to_string_lossy(),
+            Some(""),
+        )
+        .expect("render fixture PDF");
+
+        assert_eq!(engine, PdfEngine::BuiltIn);
+        let bytes = fs::read(output).expect("read fixture PDF");
+        assert!(bytes.starts_with(b"%PDF-"));
+    }
+
+    let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
 fn test_fake_path_tex_engine_detection() {
     let temp_dir =
         std::env::temp_dir().join(format!("tessera_test_fake_path_{}", std::process::id()));
@@ -87,6 +119,11 @@ fn test_fake_path_tex_engine_detection() {
     assert_eq!(program_name, "pdflatex");
 
     let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn test_empty_path_does_not_detect_tex_engine() {
+    assert!(detect_tex_engine(Some("")).is_none());
 }
 
 #[test]

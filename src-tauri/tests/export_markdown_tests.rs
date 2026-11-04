@@ -95,15 +95,23 @@ fn test_markdown_export_lists() {
     let unordered = Block::list(
         ListKind::Unordered,
         vec![
-            vec![Block::paragraph(vec![Inline::text("Item 1".into()).unwrap()])],
-            vec![Block::paragraph(vec![Inline::text("Item 2".into()).unwrap()])],
+            vec![Block::paragraph(vec![
+                Inline::text("Item 1".into()).unwrap()
+            ])],
+            vec![Block::paragraph(vec![
+                Inline::text("Item 2".into()).unwrap()
+            ])],
         ],
     );
     let ordered = Block::list(
         ListKind::Ordered,
         vec![
-            vec![Block::paragraph(vec![Inline::text("First".into()).unwrap()])],
-            vec![Block::paragraph(vec![Inline::text("Second".into()).unwrap()])],
+            vec![Block::paragraph(
+                vec![Inline::text("First".into()).unwrap()],
+            )],
+            vec![Block::paragraph(vec![
+                Inline::text("Second".into()).unwrap()
+            ])],
         ],
     );
 
@@ -119,8 +127,15 @@ fn test_markdown_export_lists() {
 #[test]
 fn test_markdown_export_code_block_and_quote() {
     let metadata = sample_metadata(None);
-    let code = Block::code_block(Some("rust".into()), "fn main() {\n    println!(\"Hello\");\n}".into()).unwrap();
-    let quote = Block::quote(vec![Block::paragraph(vec![Inline::text("Quoted text line".into()).unwrap()])]);
+    let code = Block::code_block(
+        Some("rust".into()),
+        "fn main() {\n    println!(\"Hello\");\n}".into(),
+    )
+    .unwrap();
+    let quote = Block::quote(vec![Block::paragraph(vec![Inline::text(
+        "Quoted text line".into(),
+    )
+    .unwrap()])]);
 
     let doc = Document::new(metadata, vec![code, quote]);
     let md = render_markdown(&doc).expect("markdown export succeeds");
@@ -132,7 +147,9 @@ fn test_markdown_export_code_block_and_quote() {
 #[test]
 fn test_markdown_export_equations_and_figures() {
     let metadata = sample_metadata(None);
-    let eq = Block::equation(Equation::new("\\int_0^\\infty x^2 dx".into(), true, Some("eq:int".into())).unwrap());
+    let eq = Block::equation(
+        Equation::new("\\int_0^\\infty x^2 dx".into(), true, Some("eq:int".into())).unwrap(),
+    );
     let fig = Block::figure(
         Figure::new(
             "figure1.png".into(),
@@ -154,25 +171,33 @@ fn test_markdown_export_equations_and_figures() {
 fn test_markdown_export_table_spans() {
     let metadata = sample_metadata(None);
     let cell1 = TableCell::new(
-        vec![Block::paragraph(vec![Inline::text("Merged Col".into()).unwrap()])],
+        vec![Block::paragraph(vec![
+            Inline::text("Merged Col".into()).unwrap()
+        ])],
         2,
         1,
     )
     .unwrap();
     let cell2 = TableCell::new(
-        vec![Block::paragraph(vec![Inline::text("Row 1 Cell".into()).unwrap()])],
+        vec![Block::paragraph(vec![
+            Inline::text("Row 1 Cell".into()).unwrap()
+        ])],
         1,
         2,
     )
     .unwrap();
     let cell3 = TableCell::new(
-        vec![Block::paragraph(vec![Inline::text("Normal Cell".into()).unwrap()])],
+        vec![Block::paragraph(vec![
+            Inline::text("Normal Cell".into()).unwrap()
+        ])],
         1,
         1,
     )
     .unwrap();
     let cell4 = TableCell::new(
-        vec![Block::paragraph(vec![Inline::text("Lower Cell".into()).unwrap()])],
+        vec![Block::paragraph(vec![
+            Inline::text("Lower Cell".into()).unwrap()
+        ])],
         1,
         1,
     )
