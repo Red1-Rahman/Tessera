@@ -114,15 +114,15 @@ fn test_plaintext_export_lists_no_markdown_markers() {
     let doc = Document::new(metadata, vec![unordered, ordered]);
     let text = render_plaintext(&doc).expect("plain text export succeeds");
 
-    // Unordered items use indentation ("  "), not Markdown "-" or "*"
-    assert!(text.contains("  Bullet One"));
-    assert!(text.contains("  Bullet Two"));
+    // Unordered items use exact two-space indentation ("  Bullet One"), not Markdown "-" or "*"
+    assert!(text.lines().any(|line| line == "  Bullet One"));
+    assert!(text.lines().any(|line| line == "  Bullet Two"));
     assert!(!text.contains("- Bullet One"));
     assert!(!text.contains("* Bullet One"));
 
     // Ordered items use "(1) ", not Markdown "1. "
-    assert!(text.contains("(1) Step One"));
-    assert!(text.contains("(2) Step Two"));
+    assert!(text.lines().any(|line| line == "(1) Step One"));
+    assert!(text.lines().any(|line| line == "(2) Step Two"));
     assert!(!text.contains("1. Step One"));
 }
 
