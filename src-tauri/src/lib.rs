@@ -32,6 +32,7 @@ pub fn run() {
         ))
         .invoke_handler(tauri::generate_handler![
             commands::document::open_project,
+            commands::document::open_document,
             commands::document::new_project,
             commands::document::parse_latex,
             commands::document::apply_docx_edit,

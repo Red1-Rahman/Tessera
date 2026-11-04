@@ -6,7 +6,7 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Schema, type Node as ProseMirrorNode } from "prosemirror-model";
 import { EditorState, Plugin, PluginKey } from "prosemirror-state";
 import { baseKeymap, toggleMark } from "prosemirror-commands";
@@ -15,6 +15,8 @@ import { keymap } from "prosemirror-keymap";
 import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
 import "prosemirror-view/style/prosemirror.css";
 import type { Block, Document, Inline, SyncWarning } from "../ipc/commands";
+import { DocxFormatToolbar } from "./DocxFormatToolbar";
+import { formattingKeymap } from "./docxFormatting";
 
 export interface DocxEditorHandle {
   scrollToBlock(index: number): void;
@@ -438,6 +440,7 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
   const applyingRemoteRef = useRef(false);
   const appliedScrollRef = useRef<number | null>(null);
   const documentRef = useRef(document);
+  const [toolbarState, setToolbarState] = useState<{ view: EditorView; state: EditorState } | null>(null);
   callbacksRef.current = { onChange, onScroll, onNavigate };
   documentRef.current = document;
 
@@ -477,6 +480,7 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
       decorationsPlugin,
       keymap({
         ...baseKeymap,
+        ...formattingKeymap,
         "Mod-z": undo,
         "Mod-y": redo,
         "Mod-Shift-z": redo,
@@ -494,6 +498,7 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
         const next = previousState.apply(transaction);
         const changed = next !== previousState;
         view.updateState(next);
+        setToolbarState({ view, state: next });
         if (changed && transaction.docChanged && !transaction.getMeta(remoteUpdate) && !applyingRemoteRef.current) {
           callbacksRef.current.onChange(next.doc.content.content.map(nodeToBlock));
         }
@@ -501,6 +506,7 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
       attributes: { class: "docx-prosemirror" },
     });
     viewRef.current = view;
+    setToolbarState({ view, state: view.state });
     const handleScroll = () => {
       const element = paneRef.current;
       if (!element) return;
@@ -550,6 +556,7 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
 
   return (
     <section ref={paneRef} className="editor-pane docx-editor" aria-label="DOCX document editor">
+      <DocxFormatToolbar view={toolbarState?.view ?? null} state={toolbarState?.state ?? null} />
       <div ref={mountRef} data-testid="docx-editor" />
     </section>
   );
@@ -614,4 +621,3 @@ export function diffBlocks(previous: Block[], next: Block[]): { op: "Replace" | 
   }
   return operations;
 }
-

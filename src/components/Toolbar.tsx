@@ -6,10 +6,14 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
+import { FileMenu } from "./FileMenu";
+
 export type SyncStatus = "editing" | "syncing" | "synced" | "error";
 
 interface ToolbarProps {
   syncStatus: SyncStatus;
+  onOpenProject: () => void;
+  onOpenFile: () => void;
   onExportClick: () => void;
   onSaveClick: () => void;
   syncScroll: boolean;
@@ -19,6 +23,8 @@ interface ToolbarProps {
 
 export function Toolbar({
   syncStatus,
+  onOpenProject,
+  onOpenFile,
   onExportClick,
   onSaveClick,
   syncScroll,
@@ -37,6 +43,7 @@ export function Toolbar({
     <header className="toolbar">
       <div className="toolbar-left">
         <h1 className="toolbar-title">Tessera</h1>
+        <FileMenu onOpenProject={onOpenProject} onOpenFile={onOpenFile} />
       </div>
       <div className="toolbar-center">
         <label className="toolbar-toggle">

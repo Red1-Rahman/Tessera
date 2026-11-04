@@ -87,6 +87,14 @@ no project is open. There is no close-project command.
 are held in memory until this command is called. Exporting a file does not
 save the project first.
 
+`open_document({ path })` opens a standalone `.tex` or `.docx` file and
+replaces the active session only after the file has been read successfully.
+Standalone TeX saves are written to a sibling temporary file before the
+original is replaced. Standalone DOCX media is extracted into a temporary
+directory, and relative figure paths beside the DOCX are staged there before
+writing. If embedded media cannot be preserved, opening fails instead of
+allowing a later save to omit it.
+
 ### Editing and version flow
 
 The frontend must keep the `Document` and `version` returned by the

@@ -16,23 +16,29 @@ import {
   applyDocxEdit,
   exportDocument,
   getHighlightTokens,
+  openDocument,
+  openProject,
   parseLatex,
+  saveProject,
   type Block,
   type DmPatch,
   type HighlightKind,
   type HighlightToken,
   type TesseraError,
 } from "./ipc/commands";
+import { openDirectoryDialog, openFileDialog } from "./ipc/native";
 import {
   applySyncResult,
   DOCX_SYNC_DEBOUNCE_MS,
   getSnapshot,
   LATEX_REPARSE_DEBOUNCE_MS,
+  loadProject,
   subscribe,
 } from "./state/documentStore";
 import "./styles.css";
 
 type PendingEdit = { kind: "latex"; source: string } | { kind: "docx"; blocks: Block[]; revision: number };
+type OpenRequest = { kind: "project" | "file"; path: string };
 
 function errorMessage(error: unknown): string {
   if (typeof error !== "object" || error === null || !("kind" in error)) return "The document could not be synchronized.";
@@ -121,6 +127,8 @@ function App(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [syncConflict, setSyncConflict] = useState<string | null>(null);
   const [docxDirty, setDocxDirty] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [pendingOpen, setPendingOpen] = useState<OpenRequest | null>(null);
   const [docxFlash, setDocxFlash] = useState({ token: 0, indices: [] as number[] });
   const [latexFlash, setLatexFlash] = useState<EditorFlash | null>(null);
   const [latexScrollRatio, setLatexScrollRatio] = useState<number | null>(null);
@@ -137,6 +145,7 @@ function App(): JSX.Element {
   const docxRevisionRef = useRef(0);
   const syncConflictRef = useRef(false);
   const docxConflictRenderRef = useRef<string | null>(null);
+  const hasUnsavedChangesRef = useRef(false);
   const sourceRef = useRef(latexSource);
   const flashTokenRef = useRef(0);
   const initializedProjectLoadRef = useRef(0);
@@ -161,9 +170,11 @@ function App(): JSX.Element {
       setLatexSource("");
       setTokens([]);
       setDocxDirty(false);
+      hasUnsavedChangesRef.current = false;
+      setHasUnsavedChanges(false);
       setSyncConflict(null);
       setError(null);
-      setSyncStatus("editing");
+      setSyncStatus("synced");
       setLatexScrollRatio(null);
       setDocxScrollRatio(null);
     }
@@ -210,6 +221,8 @@ function App(): JSX.Element {
           });
           if (patches.length === 0) {
             retriedEditsRef.current.delete(edit);
+            hasUnsavedChangesRef.current = true;
+            setHasUnsavedChanges(true);
             setError(null);
             if (docxRevisionRef.current === edit.revision) {
               docxDirtyRef.current = false;
@@ -308,6 +321,66 @@ function App(): JSX.Element {
     );
   }, [queueEdit]);
 
+  const loadOpenRequest = useCallback(async ({ kind, path }: OpenRequest): Promise<void> => {
+    loadProject(kind === "project" ? await openProject(path) : await openDocument(path));
+  }, []);
+
+  const handleOpen = useCallback(async (kind: "project" | "file"): Promise<void> => {
+    try {
+      const path = kind === "project"
+        ? await openDirectoryDialog()
+        : await openFileDialog({ filters: [{ name: "LaTeX or Word document", extensions: ["tex", "docx"] }] });
+      if (path === null) return;
+      const request = { kind, path };
+      if (hasUnsavedChangesRef.current) {
+        setPendingOpen(request);
+        return;
+      }
+      await loadOpenRequest(request);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }, [loadOpenRequest]);
+
+  const handleSave = useCallback(async (): Promise<void> => {
+    try {
+      await saveProject();
+      hasUnsavedChangesRef.current = false;
+      setHasUnsavedChanges(false);
+      setError(null);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }, []);
+
+  const saveBeforeOpen = useCallback(async (): Promise<void> => {
+    if (!pendingOpen) return;
+    try {
+      await saveProject();
+      hasUnsavedChangesRef.current = false;
+      setHasUnsavedChanges(false);
+      setError(null);
+      const request = pendingOpen;
+      setPendingOpen(null);
+      await loadOpenRequest(request);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }, [loadOpenRequest, pendingOpen]);
+
+  const discardBeforeOpen = useCallback(async (): Promise<void> => {
+    if (!pendingOpen) return;
+    const request = pendingOpen;
+    hasUnsavedChangesRef.current = false;
+    setHasUnsavedChanges(false);
+    setPendingOpen(null);
+    try {
+      await loadOpenRequest(request);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    }
+  }, [loadOpenRequest, pendingOpen]);
+
   const keepLatexConflict = useCallback(() => {
     syncConflictRef.current = false;
     setSyncConflict(null);
@@ -372,6 +445,7 @@ function App(): JSX.Element {
     <div className="pane-empty-state" aria-label="LaTeX source editor">
       <h2>LaTeX</h2>
       <p>Open a project to start editing.</p>
+      <p>Use File to open a project or a .tex/.docx file.</p>
     </div>
   );
 
@@ -393,7 +467,7 @@ function App(): JSX.Element {
   ) : (
     <div className="pane-empty-state" aria-label="DOCX document editor">
       <h2>DOCX</h2>
-      <p>Open a project to see the structured document.</p>
+      <p>Use File to open a project or a .tex/.docx file.</p>
     </div>
   );
 
@@ -403,9 +477,11 @@ function App(): JSX.Element {
         syncStatus={syncStatus}
         syncScroll={syncScroll}
         onSyncScrollChange={setSyncScroll}
+        onOpenProject={() => void handleOpen("project")}
+        onOpenFile={() => void handleOpen("file")}
         onExportClick={() => setIsExportOpen(true)}
-        onSaveClick={() => undefined}
-        saveDisabled
+        onSaveClick={() => void handleSave()}
+        saveDisabled={!hasDocument || !hasUnsavedChanges || syncStatus !== "synced"}
       />
       {error && <div className="sync-error" role="alert">{error}</div>}
       {syncConflict && (
@@ -419,6 +495,14 @@ function App(): JSX.Element {
         <SplitPane left={left} right={right} />
       </div>
       <ExportMenu isOpen={isExportOpen} onClose={() => setIsExportOpen(false)} hasDocument={hasDocument} />
+      {pendingOpen && (
+        <div className="sync-error" role="dialog" aria-modal="true" aria-labelledby="pending-open-title">
+          <strong id="pending-open-title">Save changes before opening another document?</strong>
+          <button type="button" onClick={() => void saveBeforeOpen()}>Save</button>
+          <button type="button" onClick={() => void discardBeforeOpen()}>Discard</button>
+          <button type="button" onClick={() => setPendingOpen(null)}>Cancel</button>
+        </div>
+      )}
     </main>
   );
 }

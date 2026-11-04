@@ -1,0 +1,56 @@
+/*
+ * Tessera
+ * Copyright (C) 2026 Redwan Rahman
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
+.file-menu {
+  position: relative;
+}
+
+.file-menu-list {
+  position: absolute;
+  top: calc(100% + var(--space-xs));
+  left: 0;
+  z-index: 50;
+  list-style: none;
+  min-width: 240px;
+  padding: var(--space-xs);
+  background: var(--chrome-bg);
+  border: 1px solid var(--chrome-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.file-menu-item {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: var(--space-sm);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--chrome-text);
+}
+
+.file-menu-item:hover,
+.file-menu-item:focus-visible {
+  background: var(--chrome-border);
+}
+
+.file-menu-name {
+  font-weight: 600;
+}
+
+.file-menu-note {
+  font-size: 0.75rem;
+  color: var(--chrome-text-muted);
+  margin-top: 2px;
+}

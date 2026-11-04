@@ -6,7 +6,8 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-//! Document and project commands: `open_project`, `new_project`,
+//! Document and project commands: `open_project`, `open_document`,
+//! `new_project`,
 //! `parse_latex`, `apply_docx_edit`, and `save_project` (see
 //! `docs/contracts.md`, section 2).
 //!
@@ -48,6 +49,23 @@ pub fn open_project_with_session(
     path: &str,
 ) -> Result<ProjectState, TesseraError> {
     lock_session(session)?.open_project(path)
+}
+
+/// Opens a standalone `.tex` or `.docx` file as a single-file session.
+#[tauri::command]
+pub fn open_document(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<ProjectState, TesseraError> {
+    open_document_with_session(&state, &path)
+}
+
+/// Opens a standalone file using the session shared with the Tauri command handler.
+pub fn open_document_with_session(
+    session: &AppState,
+    path: &str,
+) -> Result<ProjectState, TesseraError> {
+    lock_session(session)?.open_document(path)
 }
 
 /// Creates a new project directory with a starter `main.tex`.
@@ -101,7 +119,8 @@ pub fn apply_docx_edit_with_session(
     lock_session(session)?.apply_docx_edit(request)
 }
 
-/// Writes `main.tex`, `main.docx`, and `.tessera/project.json`.
+/// Writes `main.tex`, `main.docx`, and `.tessera/project.json`, or, for a
+/// standalone file session, writes back to that file only.
 #[tauri::command]
 pub fn save_project(state: State<'_, AppState>) -> Result<(), TesseraError> {
     save_project_with_session(&state)

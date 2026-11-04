@@ -15,10 +15,11 @@
 //! section 3). The session lives here rather than in `commands/` so the
 //! full open/edit/save flow is testable without Tauri or a webview.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::io::{self, Write};
+use std::path::{Component, Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +27,7 @@ use crate::core::diff::{
     apply_dm_patches, check_base_version, document_labels, document_sync_warnings,
     initial_document_warnings, DocSyncResult, DocxEditRequest, LatexEditRequest,
 };
+use crate::core::docx::reader::read_docx_with_assets;
 use crate::core::docx::writer::write_docx_file;
 use crate::core::error::{Pane, TesseraError};
 use crate::core::latex::highlight::{highlight, HighlightRequest, HighlightToken};
@@ -76,6 +78,53 @@ struct Project {
     document: Document,
     last_edited_pane: Pane,
     assets: BTreeSet<String>,
+    /// `Some` when the session holds a standalone `.tex` or `.docx` file
+    /// rather than a project directory (see `ProjectSession::open_document`).
+    file: Option<OpenFile>,
+}
+
+impl Project {
+    /// Directory that `Figure::asset_path` values are resolved against.
+    /// Project mode uses `.tessera/assets`. A standalone `.tex` file
+    /// resolves images next to the file. A standalone `.docx` file uses
+    /// a temporary directory holding extracted media and staged relative
+    /// images from the directory containing the file.
+    fn assets_dir(&self) -> PathBuf {
+        match &self.file {
+            None => assets_dir(&self.root),
+            Some(OpenFile {
+                temp_assets: Some(temp),
+                ..
+            }) => temp.0.clone(),
+            Some(_) => self.root.clone(),
+        }
+    }
+}
+
+/// Which format a standalone file uses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FileFormat {
+    Tex,
+    Docx,
+}
+
+/// A standalone file opened by `open_document`. Saving writes back to
+/// `path` only; no project directory or `.tessera/` folder is created.
+#[derive(Debug)]
+struct OpenFile {
+    path: PathBuf,
+    format: FileFormat,
+    temp_assets: Option<TempAssets>,
+}
+
+/// A temporary directory removed when the session drops it.
+#[derive(Debug)]
+struct TempAssets(PathBuf);
+
+impl Drop for TempAssets {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -101,7 +150,7 @@ impl ProjectSession {
     /// Returns the current project's asset directory, or an error when no
     /// project is open.
     pub fn assets_dir(&self) -> Result<PathBuf, TesseraError> {
-        Ok(assets_dir(&self.project_ref()?.root))
+        Ok(self.project_ref()?.assets_dir())
     }
 
     /// The current project state, for callers that need the path or
@@ -161,12 +210,85 @@ impl ProjectSession {
             document,
             last_edited_pane,
             assets,
+            file: None,
         };
 
         if reconstructed {
             write_project_json(&project)?;
         }
 
+        let state = project_state(&project, warnings);
+        self.project = Some(project);
+        Ok(state)
+    }
+
+    /// Opens a standalone `.tex` or `.docx` file as a single-file session.
+    ///
+    /// The file's content becomes the document. `save_project` then writes
+    /// back to that same file only: a `.tex` file receives the printed
+    /// LaTeX and a `.docx` file receives the written DOCX. No `main.tex`,
+    /// `main.docx`, or `.tessera/` directory is created. The returned
+    /// `ProjectState.path` is the file path. Opening replaces any active
+    /// session, like `open_project`.
+    ///
+    /// Fails with `ValidationError` on field `path` for a blank path or an
+    /// extension other than `tex` or `docx` (case-insensitive), and with
+    /// `IoError` or `ParseError` when the file cannot be read or parsed.
+    pub fn open_document(&mut self, path: &str) -> Result<ProjectState, TesseraError> {
+        if path.trim().is_empty() {
+            return Err(TesseraError::validation(
+                "path",
+                "file path must not be empty or whitespace-only",
+            ));
+        }
+        let file_path = PathBuf::from(path);
+        let extension = file_path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .map(str::to_ascii_lowercase);
+        let format = match extension.as_deref() {
+            Some("tex") => FileFormat::Tex,
+            Some("docx") => FileFormat::Docx,
+            _ => {
+                return Err(TesseraError::validation(
+                    "path",
+                    "only .tex and .docx files can be opened",
+                ))
+            }
+        };
+        let root = file_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+
+        let mut warnings = Vec::new();
+        let (document, last_edited_pane, temp_assets) = match format {
+            FileFormat::Tex => {
+                let source =
+                    fs::read_to_string(&file_path).map_err(|error| io_error(&file_path, error))?;
+                (parse_latex(&source)?, Pane::Latex, None)
+            }
+            FileFormat::Docx => {
+                let bytes = fs::read(&file_path).map_err(|error| io_error(&file_path, error))?;
+                let result = read_docx_with_assets(&bytes)?;
+                let temp = extract_docx_assets(&result.assets)?;
+                (result.document, Pane::Docx, temp)
+            }
+        };
+        warnings.extend(initial_document_warnings(&document));
+
+        let project = Project {
+            root,
+            assets: document_assets(&document),
+            document,
+            last_edited_pane,
+            file: Some(OpenFile {
+                path: file_path,
+                format,
+                temp_assets,
+            }),
+        };
         let state = project_state(&project, warnings);
         self.project = Some(project);
         Ok(state)
@@ -217,6 +339,7 @@ impl ProjectSession {
             document,
             last_edited_pane: Pane::Latex,
             assets: BTreeSet::new(),
+            file: None,
         };
         write_project_json(&project)?;
 
@@ -230,12 +353,26 @@ impl ProjectSession {
     pub fn save_project(&mut self) -> Result<(), TesseraError> {
         let project = self.project_mut()?;
         let document = project.document.clone();
+        if let Some(file) = &project.file {
+            match file.format {
+                FileFormat::Tex => {
+                    write_file_replacing(&file.path, print_latex(&document).as_bytes())?
+                }
+                FileFormat::Docx => {
+                    let assets_dir = project.assets_dir();
+                    stage_relative_docx_assets(project, &document, &assets_dir)?;
+                    let _ = write_docx_file(&document, &file.path, assets_dir)?;
+                }
+            }
+            project.assets = document_assets(&document);
+            return Ok(());
+        }
         let main_tex = project.root.join("main.tex");
         fs::write(&main_tex, print_latex(&document)).map_err(|error| io_error(&main_tex, error))?;
         let _ = write_docx_file(
             &document,
             project.root.join("main.docx"),
-            assets_dir(&project.root),
+            project.assets_dir(),
         )?;
         project.assets = document_assets(&document);
         write_project_json(project)?;
@@ -327,8 +464,12 @@ fn assets_dir(root: &Path) -> PathBuf {
 }
 
 fn project_state(project: &Project, warnings: Vec<SyncWarning>) -> ProjectState {
+    let path = match &project.file {
+        Some(file) => file.path.display().to_string(),
+        None => project.root.display().to_string(),
+    };
     ProjectState {
-        path: project.root.display().to_string(),
+        path,
         document: project.document.clone(),
         last_edited_pane: project.last_edited_pane,
         assets: project.assets.iter().cloned().collect(),
@@ -453,6 +594,105 @@ fn copy_assets(root: &Path, document: &Document, warnings: &mut Vec<SyncWarning>
             )));
         }
     }
+}
+
+/// Writes media extracted from a DOCX into a fresh temporary directory so
+/// the DOCX writer can re-embed it on save. Only relative paths made of
+/// plain components are written; anything else is skipped with a warning.
+fn extract_docx_assets(
+    assets: &HashMap<String, Vec<u8>>,
+) -> Result<Option<TempAssets>, TesseraError> {
+    if assets.is_empty() {
+        return Ok(None);
+    }
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_nanos())
+        .unwrap_or(0);
+    let root = std::env::temp_dir().join(format!(
+        "tessera_docx_assets_{}_{}",
+        std::process::id(),
+        unique
+    ));
+    if let Err(error) = fs::create_dir_all(&root) {
+        return Err(io_error(&root, error));
+    }
+    let temp = TempAssets(root);
+    for (name, bytes) in assets {
+        let relative = Path::new(name);
+        let is_plain = relative
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)));
+        if !is_plain {
+            return Err(TesseraError::validation(
+                "docx.media",
+                format!("DOCX image `{name}` is not a plain relative path"),
+            ));
+        }
+        let destination = temp.0.join(relative);
+        let written = destination
+            .parent()
+            .map_or(Ok(()), fs::create_dir_all)
+            .and_then(|()| fs::write(&destination, bytes));
+        if let Err(error) = written {
+            return Err(io_error(&destination, error));
+        }
+    }
+    Ok(Some(temp))
+}
+
+fn stage_relative_docx_assets(
+    project: &Project,
+    document: &Document,
+    destination_root: &Path,
+) -> Result<(), TesseraError> {
+    for asset in document_assets(document) {
+        let destination = destination_root.join(&asset);
+        if destination.exists() {
+            continue;
+        }
+        let source = project.root.join(&asset);
+        if !source.is_file() {
+            continue;
+        }
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
+        }
+        fs::copy(&source, &destination).map_err(|error| io_error(&destination, error))?;
+    }
+    Ok(())
+}
+
+fn write_file_replacing(path: &Path, contents: &[u8]) -> Result<(), TesseraError> {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_nanos())
+        .unwrap_or(0);
+    let temporary = path.with_extension(format!(
+        "{}.tessera-tmp-{}-{}",
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or("tmp"),
+        std::process::id(),
+        unique
+    ));
+    let write_result = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)
+        .and_then(|mut file| file.write_all(contents));
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&temporary);
+        return Err(io_error(path, error));
+    }
+    if fs::rename(&temporary, path).is_err() {
+        let replacement = fs::remove_file(path).and_then(|()| fs::rename(&temporary, path));
+        if let Err(replacement_error) = replacement {
+            let _ = fs::remove_file(&temporary);
+            return Err(io_error(path, replacement_error));
+        }
+    }
+    Ok(())
 }
 
 fn io_error(path: &Path, error: io::Error) -> TesseraError {

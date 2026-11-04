@@ -21,6 +21,37 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-04: Safe standalone saves and open-flow guards
+
+### Changes
+
+- Standalone TeX saves now write the complete printed source to a sibling
+  temporary file before replacing the original.
+- Standalone DOCX sessions fail to open when media extraction cannot be
+  completed, and stage newly referenced sibling images alongside extracted
+  media before saving.
+- The frontend tracks edits since the last successful save, offers Save,
+  Discard, or Cancel before replacing an edited session, and leaves sync
+  status unchanged when open or save fails.
+- DOCX formatting refuses code-block conversion for paragraphs containing
+  citation or cross-reference nodes, and container unwrapping merges both
+  trivia sources without silently dropping unsupported trivia.
+- Added save-back coverage that edits an opened DOCX, saves it, reopens it,
+  and verifies the edited text.
+
+### Verification
+
+- `cargo fmt --manifest-path src-tauri\Cargo.toml -- --check`
+- `cargo test --manifest-path src-tauri\Cargo.toml --test open_document_tests`
+- `npm run typecheck`
+- `npm run lint -- --quiet`
+- `npm test -- --run --maxWorkers=1`
+
+All commands passed. The working tree also contains the earlier frontend
+shell and export wiring changes staged for the same atomic commit.
+
+---
+
 ## 2026-11-04: Task 10 export and clipboard wiring
 
 ### Changes

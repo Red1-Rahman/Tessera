@@ -238,6 +238,14 @@ resume a session (last DM version, which pane was last edited) and is
 safe to delete; Tessera reconstructs it from `main.tex` on next open if
 missing.
 
+Standalone DOCX sessions keep extracted media in a temporary directory.
+Relative figure paths beside the opened DOCX are staged into that directory
+before saving, so embedded media and newly referenced images use the same
+writer resolution path. A failed media extraction prevents the session from
+opening rather than permitting a save with missing images. Standalone TeX
+saves write the complete printed source to a sibling temporary file before
+replacing the original.
+
 ## Testing strategy
 
 See `docs/conventions.md` for the full policy. In short: the DM, the

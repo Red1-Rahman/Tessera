@@ -210,6 +210,14 @@ export async function openProject(path: string): Promise<ProjectState> {
   return invoke<ProjectState>("open_project", { path });
 }
 
+/**
+ * Opens a standalone .tex or .docx file as a single-file session.
+ * Save then writes back to that file only.
+ */
+export async function openDocument(path: string): Promise<ProjectState> {
+  return invoke<ProjectState>("open_document", { path });
+}
+
 export async function newProject(request: NewProjectRequest): Promise<ProjectState> {
   return invoke<ProjectState>("new_project", { request });
 }

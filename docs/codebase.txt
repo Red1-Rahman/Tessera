@@ -46,14 +46,21 @@ src/                                  Frontend: TypeScript + React, bundled with
     LatexEditor.tsx                     CodeMirror 6 instance for the LaTeX pane. Okabe-Ito theme.
     LatexEditor.test.tsx                Component tests for source, token decorations, warnings, and external updates.
     DocxEditor.tsx                       ProseMirror/Tiptap instance for the DOCX pane.
+    DocxFormatToolbar.tsx                    Word-style formatting bar above the DOCX pane (undo, block style, marks, lists, quote).
+    DocxFormatToolbar.css                    Styles for the formatting bar.
+    docxFormatting.ts                        ProseMirror commands behind the bar, limited to what the Document Model can represent.
+    docxFormatting.test.ts                   Command tests for block style, lists, quotes, and marks.
+    DocxFormatToolbar.test.tsx               Toolbar render and edit-flow test.
     DocxEditor.test.tsx                  Component tests for warnings, flash cleanup, opaque blocks, and DM patches.
   state/
     documentStore.ts                       Single store mirroring backend Document Model version. Debounce constants live here.
   ipc/
     commands.ts                            Only file allowed to call Tauri invoke() directly. Typed wrappers for every command in docs/contracts.md section 2.
-    native.ts                              Typed wrappers for the Tauri dialog (save) and clipboard-manager (writeText) plugins, so no component imports a plugin directly.
+    native.ts                              Typed wrappers for the Tauri dialog (save, open) and clipboard-manager (writeText) plugins, so no component imports a plugin directly.
   components/
     SplitPane.tsx                            Resizable two-pane layout container.
+    FileMenu.tsx                               Toolbar File dropdown: Open Project (directory) and Open File (.tex or .docx).
+    FileMenu.css                               Styles for the File dropdown.
     ExportMenu.tsx                             Export format picker (LaTeX, DOCX, PDF, Markdown, plain text, clipboard), wired to the export command, the save dialog, and the clipboard.
     ExportMenu.test.tsx                        Component tests for the export menu, mocking the IPC layer.
     Toolbar.tsx                                 Top-level app toolbar.
@@ -65,13 +72,13 @@ src-tauri/                                        Backend: Rust, Tauri app shell
   build.rs                                            Tauri build script (embeds config and assets).
   icons/                                              App icons in all platform formats, generated from one source image via `npx tauri icon`.
   capabilities/
-    default.json                                       Capability granted to the main window: core:default plus dialog:allow-save and clipboard-manager:allow-write-text for the export menu, no HTTP scope.
+    default.json                                       Capability granted to the main window: core:default plus dialog:allow-save, dialog:allow-open and clipboard-manager:allow-write-text for the export menu, no HTTP scope.
   src/
     main.rs                                            App bootstrap entry point; calls tessera_lib::run().
     lib.rs                                             Library crate root: wires core/ and commands/ modules, runs Tauri.
     commands/                                           Thin Tauri command handlers (IPC surface only).
       mod.rs
-      document.rs                                         open_project, new_project, parse_latex, apply_docx_edit, save_project.
+      document.rs                                         open_project, open_document, new_project, parse_latex, apply_docx_edit, save_project.
       export.rs                                             export (LaTeX, DOCX, PDF, Markdown, plain text, clipboard).
     core/                                                  All conversion/business logic lives here, framework-agnostic.
       mod.rs
@@ -103,6 +110,7 @@ src-tauri/tests/                                           Rust integration test
   export_pdf_tests.rs                                       PDF export renderer test suite (Task 06-B).
   export_plaintext_tests.rs                                 Plain text export renderer test suite (Task 06-D).
   commands_integration_tests.rs                             Tauri command integration tests for the open-edit-export cycle (Task 07).
+  open_document_tests.rs                                    Standalone .tex and .docx open and save-back tests.
   highlight_tests.rs                                        Okabe-Ito syntax highlighting integration tests (Task 06-A).
   model_tests.rs                                             Document Model validation and serde shape tests (serial-task02).
   sync_tests.rs                                             Bidirectional sync and patch engine integration tests (Task 05).

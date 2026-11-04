@@ -1,0 +1,85 @@
+/*
+ * Tessera
+ * Copyright (C) 2026 Redwan Rahman
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
+/* Beats the generic `.docx-editor > div { min-height: 100% }` rule. */
+.docx-editor > .docx-toolbar {
+  min-height: 0;
+}
+
+.docx-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-md);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--chrome-bg);
+  border-bottom: 1px solid var(--chrome-border);
+  color: var(--chrome-text);
+  font-size: 0.8125rem;
+}
+
+.docx-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.docx-tool-group + .docx-tool-group {
+  padding-left: var(--space-md);
+  border-left: 1px solid var(--chrome-border);
+}
+
+.docx-tool-btn,
+.docx-tool-select {
+  min-width: 2rem;
+  height: 1.875rem;
+  padding: 0 var(--space-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--chrome-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.docx-tool-select {
+  border-color: var(--chrome-border);
+  background: var(--chrome-bg);
+}
+
+.docx-tool-btn:hover:not(:disabled),
+.docx-tool-select:hover:not(:disabled) {
+  background: var(--chrome-border);
+}
+
+.docx-tool-btn:focus-visible,
+.docx-tool-select:focus-visible {
+  outline: 2px solid var(--ok-blue);
+  outline-offset: 1px;
+}
+
+.docx-tool-btn.is-active {
+  background: color-mix(in srgb, var(--ok-blue) 18%, transparent);
+  border-color: var(--ok-blue);
+}
+
+.docx-tool-btn:disabled,
+.docx-tool-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.docx-tool-bold { font-weight: 700; }
+.docx-tool-italic { font-style: italic; }
+.docx-tool-underline { text-decoration: underline; }
+.docx-tool-code { font-family: var(--font-mono); }

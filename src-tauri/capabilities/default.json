@@ -1,10 +1,11 @@
 {
   "identifier": "default",
-  "description": "Capability for the main window. Only core shell permissions plus the native save dialog and clipboard write used by the export menu: no HTTP, no network scope of any kind, per docs/conventions.md, 'Network ban'.",
+  "description": "Capability for the main window. Only core shell permissions plus the native save and open dialogs and clipboard write used by the export menu: no HTTP, no network scope of any kind, per docs/conventions.md, 'Network ban'.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "dialog:allow-save",
+    "dialog:allow-open",
     "clipboard-manager:allow-write-text"
   ]
 }
