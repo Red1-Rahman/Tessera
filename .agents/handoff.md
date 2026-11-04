@@ -21,6 +21,12 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-04: npm audit fix --force
+
+- 12 moderate severity vulnerabilities still remaining
+- reason: No fix available
+- runs okay, I'll fix it with dependabot
+
 ## 2026-11-04: Task 09 editor pane integration
 
 ### Changes
