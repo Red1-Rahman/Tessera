@@ -114,12 +114,7 @@ fn export_system_tex(
     let temp_dir = &guard.path;
 
     if assets_dir.exists() && assets_dir.is_dir() {
-        let target_assets = temp_dir.join(".tessera").join("assets");
-        fs::create_dir_all(&target_assets).map_err(|e| TesseraError::IoError {
-            path: target_assets.display().to_string(),
-            message: format!("failed to create temporary assets directory: {e}"),
-        })?;
-        copy_assets(assets_dir, &target_assets)?;
+        copy_assets(assets_dir, temp_dir)?;
     }
 
     let tex_source = printer::print_document(document);
@@ -573,5 +568,39 @@ fn flatten_block(block: &Block) -> String {
             },
             opaque.summary()
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{copy_assets, TempDirGuard};
+    use std::fs;
+
+    #[test]
+    fn copied_assets_keep_paths_relative_to_the_printed_latex_source() {
+        let temporary = TempDirGuard::new("tessera_pdf_assets_test").unwrap();
+        let source = temporary.path.join("source-assets");
+        let build = temporary.path.join("build");
+        fs::create_dir_all(source.join("figures")).unwrap();
+        fs::create_dir_all(&build).unwrap();
+        fs::write(source.join("figures").join("plot.png"), b"figure").unwrap();
+
+        copy_assets(&source, &build).unwrap();
+
+        assert_eq!(
+            fs::read(build.join("figures").join("plot.png")).unwrap(),
+            b"figure"
+        );
+        assert!(!build.join(".tessera").exists());
+    }
+
+    #[test]
+    fn temporary_build_directory_is_removed_when_its_guard_drops() {
+        let path = {
+            let temporary = TempDirGuard::new("tessera_pdf_cleanup_test").unwrap();
+            temporary.path.clone()
+        };
+
+        assert!(!path.exists());
     }
 }
