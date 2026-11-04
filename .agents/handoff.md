@@ -21,6 +21,31 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-04: Task 06-B PDF export follow-up
+
+### Changes
+
+- Fixed the system TeX temporary layout to copy project assets beside
+  `main.tex`, preserving the paths emitted by the LaTeX printer.
+- Added tests for relative asset placement and temporary build directory
+  cleanup.
+
+### Verification and remaining environment issue
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check` passed.
+- `cargo clippy` and `cargo test` were run with Cargo offline mode and
+  could not resolve `owned_ttf_parser` required by the manifest's
+  `printpdf = "=0.7.0"` dependency. `Cargo.lock` still records
+  `printpdf 0.11.3`, so the manifest and lockfile are inconsistent.
+  `cargo tree --offline` fails for the same resolution reason. No network
+  access was attempted.
+- `cargo-deny` is not installed. The cached `printpdf 0.7.0` manifest
+  declares MIT, but a complete transitive license audit remains pending.
+- `docs/techstack.yml` still lists `pulldown-cmark` although Markdown
+  export is hand-rolled. This drift was left unchanged.
+
+---
+
 ## 2026-11-04: Task 06-D Plain text export gap completion
 
 ### Changes
