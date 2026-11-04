@@ -59,14 +59,18 @@ describe("docx formatting commands", () => {
   });
 
   it("merges container and first-block trivia when unwrapping", () => {
+    const inner: Block = { type: "Paragraph", inline: [{ type: "Text", text: "one" }], trivia: { leading: "% inner\n" } };
     const list: Block = {
       type: "List",
       kind: "Unordered",
-      items: [[{ ...paragraph("one"), trivia: { leading: "% inner\n" } }]],
+      items: [[inner]],
       trivia: { leading: "% container\n" },
     };
     const { blocks } = run([list], 4, toggleList("bullet_list"));
-    expect(blocks).toEqual([{ ...paragraph("one"), trivia: { leading: "% container\n% inner\n" } }]);
+    expect(blocks).toEqual([
+      { type: "Paragraph", inline: [{ type: "Text", text: "one" }], trivia: { leading: "% container\n% inner\n" },
+      },
+    ]);
   });
 
   it("switches a bulleted list to a numbered one", () => {
