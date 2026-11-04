@@ -11,6 +11,7 @@ import type {
   DocVersion,
   DocSyncResult,
   ProjectState,
+  SyncWarning,
 } from "../ipc/commands";
 
 // Debounce constants defined exactly once per docs/conventions.md.
@@ -27,13 +28,19 @@ export interface DocumentStoreState {
   version: DocVersion;
   undoStack: Document[];
   redoStack: Document[];
+  warnings: SyncWarning[];
+  projectLoadId: number;
 }
+
+let projectLoadSequence = 0;
 
 let currentState: DocumentStoreState = {
   document: null,
   version: 0,
   undoStack: [],
   redoStack: [],
+  warnings: [],
+  projectLoadId: 0,
 };
 
 const listeners = new Set<() => void>();
@@ -69,6 +76,8 @@ export function loadProject(project: ProjectState): void {
     version: project.document.version,
     undoStack: [],
     redoStack: [],
+    warnings: project.warnings,
+    projectLoadId: ++projectLoadSequence,
   };
   notifyListeners();
 }
@@ -93,6 +102,7 @@ export function applySyncResult(
       ...currentState,
       document: result.document,
       version: result.new_version,
+      warnings: result.warnings,
     };
     notifyListeners();
     return true;
@@ -111,6 +121,8 @@ export function applySyncResult(
     version: result.new_version,
     undoStack: boundedUndoStack,
     redoStack: [], // Clear redo stack on new edit
+    warnings: result.warnings,
+    projectLoadId: currentState.projectLoadId,
   };
   notifyListeners();
   return true;
@@ -129,6 +141,7 @@ export function undo(): Document | null {
 
   const previous = currentState.undoStack[currentState.undoStack.length - 1];
   currentState = {
+    ...currentState,
     document: previous,
     version: currentState.version,
     undoStack: currentState.undoStack.slice(0, -1),
@@ -153,6 +166,7 @@ export function redo(): Document | null {
     : currentState.undoStack;
 
   currentState = {
+    ...currentState,
     document: next,
     version: currentState.version,
     undoStack: nextUndoStack,

@@ -97,11 +97,22 @@ frontend:
         language/highlight support needed for the Okabe-Ito theme (see
         docs/specs.md, section 5) and good performance on large
         documents.
+      packages:
+        - "@codemirror/state"
+        - "@codemirror/view"
+        - "@codemirror/commands"
     - name: "prosemirror (or tiptap, a prosemirror wrapper)"
       purpose: DOCX pane structured editor. Chosen over a plain
         contenteditable implementation because it models documents as a
         tree, which maps naturally onto the Document Model
         (docs/contracts.md) rather than onto raw HTML/DOM diffing.
+      packages:
+        - "prosemirror-model"
+        - "prosemirror-state"
+        - "prosemirror-view"
+        - "prosemirror-commands"
+        - "prosemirror-history"
+        - "prosemirror-keymap"
     - name: vitest
       purpose: Frontend unit tests.
     - name: playwright

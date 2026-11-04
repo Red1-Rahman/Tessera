@@ -373,6 +373,214 @@ body {
   cursor: default;
 }
 
+/* Editor panes */
+.editor-pane {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  background: var(--chrome-bg);
+  color: var(--ok-black);
+}
+
+.latex-editor {
+  display: flex;
+  flex-direction: column;
+}
+
+.latex-editor-mount {
+  flex: 1;
+  min-height: 100%;
+}
+
+.latex-editor-mount .cm-editor {
+  height: 100%;
+  min-height: 100%;
+}
+
+.latex-editor-mount .cm-scroller {
+  overflow: auto;
+}
+
+.editor-warnings {
+  list-style: none;
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--chrome-border);
+  color: var(--chrome-text);
+  font-size: 0.8125rem;
+}
+
+.editor-warnings li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  padding: 2px 0;
+}
+
+.editor-warnings li span {
+  color: var(--ok-vermillion);
+  font-weight: 700;
+}
+
+.docx-editor > div {
+  min-height: 100%;
+}
+
+.docx-prosemirror {
+  min-height: 100%;
+  max-width: var(--measure-docx);
+  margin: 0 auto;
+  padding: var(--space-lg);
+  outline: none;
+  font: var(--text-docx-body);
+  overflow-wrap: anywhere;
+}
+
+.docx-prosemirror > * + * {
+  margin-top: 1em;
+}
+
+.docx-prosemirror .docx-heading {
+  color: var(--ok-orange);
+  margin-top: 1.5em;
+  line-height: 1.25;
+}
+
+.docx-prosemirror h1.docx-heading { font: var(--text-docx-h1); }
+.docx-prosemirror h2.docx-heading { font: var(--text-docx-h2); }
+.docx-prosemirror h3.docx-heading,
+.docx-prosemirror h4.docx-heading,
+.docx-prosemirror h5.docx-heading,
+.docx-prosemirror h6.docx-heading { font-weight: 600; }
+
+.docx-prosemirror .docx-citation {
+  color: var(--ok-green);
+  white-space: nowrap;
+}
+
+.docx-prosemirror .docx-cross-reference {
+  color: var(--ok-sky);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.12em;
+}
+
+.docx-prosemirror .docx-inline-math,
+.docx-prosemirror .docx-equation {
+  color: var(--ok-blue);
+  font-family: var(--font-mono);
+}
+
+.docx-prosemirror .docx-equation {
+  text-align: center;
+  padding: var(--space-sm);
+}
+
+.docx-prosemirror .docx-code-block {
+  overflow-x: auto;
+  padding: var(--space-md);
+  background: color-mix(in srgb, var(--chrome-border) 40%, transparent);
+  font: var(--text-latex-body);
+}
+
+.docx-prosemirror .docx-inline-code {
+  font-family: var(--font-mono);
+  background: color-mix(in srgb, var(--chrome-border) 45%, transparent);
+}
+
+.docx-prosemirror .docx-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.docx-prosemirror .docx-table td {
+  border: 1px solid var(--chrome-border);
+  padding: var(--space-xs) var(--space-sm);
+  min-width: 2rem;
+}
+
+.docx-prosemirror .docx-quote {
+  border-left: 2px solid var(--chrome-border);
+  padding-left: var(--space-md);
+  color: var(--chrome-text-muted);
+}
+
+.docx-prosemirror .docx-figure,
+.docx-prosemirror .docx-equation,
+.docx-prosemirror .opaque-block {
+  cursor: default;
+}
+
+.docx-warning-marker {
+  display: inline-block;
+  min-width: 2rem;
+  min-height: 2rem;
+  margin-right: var(--space-xs);
+  border: 1px solid var(--ok-vermillion);
+  border-radius: 50%;
+  background: var(--chrome-bg);
+  color: var(--ok-vermillion);
+  font: inherit;
+  font-weight: 700;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.docx-warning-marker.expanded {
+  max-width: min(30rem, 60vw);
+  width: auto;
+  padding: 0 var(--space-sm);
+  border-radius: 4px;
+  text-align: left;
+}
+
+.docx-sync-flash,
+.docx-crossref-target,
+.cm-sync-flash {
+  animation: tessera-sync-flash 200ms ease-out;
+}
+
+.docx-sync-flash-text { --flash-color: color-mix(in srgb, var(--ok-black) 12%, transparent); }
+.docx-sync-flash-math { --flash-color: color-mix(in srgb, var(--ok-blue) 20%, transparent); }
+.docx-sync-flash-opaque { --flash-color: color-mix(in srgb, var(--ok-purple) 18%, transparent); }
+
+@keyframes tessera-sync-flash {
+  from { background-color: var(--flash-color, color-mix(in srgb, var(--ok-orange) 16%, transparent)); }
+  to { background-color: transparent; }
+}
+
+.pane-empty-state {
+  height: 100%;
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  color: var(--chrome-text-muted);
+}
+
+.pane-empty-state h2 {
+  color: var(--chrome-text);
+  font-weight: 500;
+}
+
+.sync-error {
+  padding: var(--space-xs) var(--space-md);
+  border-bottom: 1px solid var(--ok-vermillion);
+  color: var(--ok-vermillion);
+  background: color-mix(in srgb, var(--ok-vermillion) 8%, var(--chrome-bg));
+  font-size: 0.875rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docx-sync-flash,
+  .docx-crossref-target {
+    animation: none;
+    background-color: color-mix(in srgb, var(--ok-orange) 15%, transparent);
+  }
+}
+
 @media (prefers-contrast: more) {
   .opaque-block {
     background: color-mix(in srgb, var(--ok-purple) 30%, transparent);

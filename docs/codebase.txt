@@ -44,7 +44,9 @@ src/                                  Frontend: TypeScript + React, bundled with
   App.test.tsx                          Vitest smoke test for the root component.
   editors/
     LatexEditor.tsx                     CodeMirror 6 instance for the LaTeX pane. Okabe-Ito theme.
+    LatexEditor.test.tsx                Component tests for source, token decorations, warnings, and external updates.
     DocxEditor.tsx                       ProseMirror/Tiptap instance for the DOCX pane.
+    DocxEditor.test.tsx                  Component tests for warnings, flash cleanup, opaque blocks, and DM patches.
   state/
     documentStore.ts                       Single store mirroring backend Document Model version. Debounce constants live here.
   ipc/
@@ -91,6 +93,7 @@ src-tauri/                                        Backend: Rust, Tauri app shell
 tests/                                                      Top-level integration/e2e test fixtures and specs, cross-cutting both src/ and src-tauri/.
   fixtures/                                                   Golden .tex / .docx sample files used by contract and round-trip tests.
   e2e/                                                         Playwright end-to-end specs driving the built app.
+    sync.spec.ts                                                Mocked-IPC smoke test for bidirectional editor synchronization.
 
 src-tauri/tests/                                           Rust integration tests (kept alongside the crate per Cargo convention).
   contracts.rs                                              Golden-file, round-trip (proptest), and snapshot (insta) tests for docs/contracts.md types.

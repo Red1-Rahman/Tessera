@@ -39,11 +39,14 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-The frontend never parses LaTeX or DOCX itself. It sends raw text or user
-edits to the Rust core through Tauri commands and receives back a
-structured document (or a diff) to render. All conversion logic lives in
-Rust so there is exactly one implementation of the sync rules, not one per
-language.
+The frontend does not parse LaTeX or DOCX for synchronization. It sends raw
+text or user edits to the Rust core through Tauri commands and receives back
+a structured document (or a diff) to render. The LaTeX editor does a
+line-local reference-pattern scan for click navigation only, because the
+current frontend contract does not expose source spans for references. All
+conversion logic lives in Rust so there is exactly one implementation of
+the sync rules, not one per language. Replace the navigation scan with
+backend-provided source spans when that contract is added.
 
 ## The Document Model (intermediate representation)
 
@@ -102,6 +105,12 @@ through the DM:
 Edits are versioned (`docs/contracts.md` has the `DocVersion` type) so a
 slow parse that returns after a newer edit was already applied is
 discarded rather than overwriting fresher state.
+
+If a DOCX edit completes while the LaTeX pane contains newer unsubmitted
+text, Tessera preserves both results and asks which pane should replace
+the shared model. Choosing LaTeX submits its full source against the latest
+confirmed version. Choosing DOCX updates the LaTeX projection from the
+confirmed model. Neither side is silently discarded.
 
 ### Conflict and loss handling
 

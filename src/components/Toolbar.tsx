@@ -6,14 +6,14 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-import { useState } from "react";
-
 export type SyncStatus = "editing" | "syncing" | "synced" | "error";
 
 interface ToolbarProps {
   syncStatus: SyncStatus;
   onExportClick: () => void;
   onSaveClick: () => void;
+  syncScroll: boolean;
+  onSyncScrollChange: (enabled: boolean) => void;
   saveDisabled?: boolean;
 }
 
@@ -21,9 +21,10 @@ export function Toolbar({
   syncStatus,
   onExportClick,
   onSaveClick,
+  syncScroll,
+  onSyncScrollChange,
   saveDisabled = false,
 }: ToolbarProps): JSX.Element {
-  const [syncScroll, setSyncScroll] = useState(true);
 
   const statusLabels: Record<SyncStatus, string> = {
     editing: "Editing",
@@ -42,7 +43,7 @@ export function Toolbar({
           <input
             type="checkbox"
             checked={syncScroll}
-            onChange={(e) => setSyncScroll(e.target.checked)}
+            onChange={(e) => onSyncScrollChange(e.target.checked)}
           />
           <span>Sync Scroll</span>
         </label>
@@ -51,14 +52,15 @@ export function Toolbar({
         <div
           className={`sync-status sync-status-${syncStatus}`}
           title={statusLabels[syncStatus]}
+          aria-live="polite"
         >
           <span className="sync-status-dot" />
           <span className="sync-status-text">{statusLabels[syncStatus]}</span>
         </div>
-        <button onClick={onSaveClick} className="toolbar-btn" disabled={saveDisabled}>
+        <button type="button" onClick={onSaveClick} className="toolbar-btn" disabled={saveDisabled}>
           Save
         </button>
-        <button onClick={onExportClick} className="toolbar-btn">
+        <button type="button" onClick={onExportClick} className="toolbar-btn">
           Export
         </button>
       </div>

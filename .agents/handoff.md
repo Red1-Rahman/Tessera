@@ -21,6 +21,51 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-04: Task 09 editor pane integration
+
+### Changes
+
+- Implemented the CodeMirror LaTeX pane and ProseMirror structured DOCX
+  pane, connected both to the document store and typed IPC wrappers.
+- Added ProseMirror history, editing keymaps, rich-text paste rules,
+  warning widgets, tagged flash decorations, opaque-block protection,
+  cross-reference navigation, and synchronized scrolling.
+- Kept pending text in its source pane during asynchronous sync. DOCX
+  updates wait while local DOCX edits are pending. Simultaneous DOCX and
+  LaTeX edits pause for an explicit choice of which pane to submit.
+- Scoped `diffBlocks` LCS work to the changed middle after matching common
+  prefixes and suffixes. Project-load ids prevent an old IPC result from
+  updating a newly loaded project.
+- Added component coverage and `tests/e2e/sync.spec.ts`. The e2e test seeds
+  the store and mocks Tauri IPC in the browser, so it verifies editor sync
+  but not the project-open flow or a built Tauri binary.
+- Added CodeMirror and ProseMirror packages to `docs/techstack.yml`.
+
+### Verification
+
+- `npm run typecheck` passed.
+- `npm run lint -- --quiet` passed.
+- `npm test -- --run --maxWorkers=1 --minWorkers=1` passed: 6 files and
+  35 tests.
+- `npm run test:e2e -- --workers=1` passed: 3 Playwright tests, including
+  an in-flight LaTeX typing race.
+- `git diff --check` passed. Git reported expected LF-to-CRLF notices for
+  tracked files on this Windows checkout.
+
+### Remaining limitations
+
+- `SyncWarning` contains affected block paths but no LaTeX source span.
+  The LaTeX pane therefore keeps a non-blocking warning list instead of
+  source-anchored markers. DOCX warnings are anchored to their blocks.
+- LaTeX reference clicks use a line-local regular expression until the
+  backend exposes source spans for references. Synchronization still uses
+  only the Rust parser and Document Model.
+- The frontend still has no project-open control in this task's scope.
+  The smoke test loads a fixture directly into the store.
+- `npm audit fix` fixed 12 issues, rest requires `npm audit fix --force`
+
+---
+
 ## 2026-11-04: Task 08-B frontend shell
 
 ### Changes

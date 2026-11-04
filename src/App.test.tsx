@@ -18,9 +18,10 @@ describe("App", () => {
     expect(screen.getByText("Tessera")).toBeTruthy();
   });
 
-  it("renders the split pane placeholders", () => {
+  it("prompts for a project before mounting the editors", () => {
     render(<App />);
-    expect(screen.getByText("LaTeX Pane")).toBeTruthy();
-    expect(screen.getByText("DOCX Pane")).toBeTruthy();
+    expect(screen.getByText("LaTeX")).toBeTruthy();
+    expect(screen.getByText("DOCX")).toBeTruthy();
+    expect(screen.getByText("Open a project to start editing.")).toBeTruthy();
   });
 });
