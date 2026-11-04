@@ -98,6 +98,12 @@ impl ProjectSession {
         Ok(&self.project_ref()?.document)
     }
 
+    /// Returns the current project's asset directory, or an error when no
+    /// project is open.
+    pub fn assets_dir(&self) -> Result<PathBuf, TesseraError> {
+        Ok(assets_dir(&self.project_ref()?.root))
+    }
+
     /// The current project state, for callers that need the path or
     /// assets as well as the document.
     pub fn state(&self) -> Result<ProjectState, TesseraError> {

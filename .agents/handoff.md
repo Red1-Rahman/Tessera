@@ -21,6 +21,43 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-04: Task 07 command layer completion
+
+### Changes
+
+- Registered `commands::export::export` and
+  `commands::document::get_highlight_tokens` in `src-tauri/src/lib.rs`.
+- Added `src-tauri/tests/commands_integration_tests.rs` using Tauri's
+  mock runtime. It covers new/open/edit/save/highlight, file export to all
+  five formats, a Markdown clipboard payload, and export error paths.
+- Clarified in `docs/specs.md` that only text formats return clipboard
+  payloads. DOCX and PDF require a file destination.
+- Enabled Tauri's existing `test` feature for dev builds. No crate was
+  added.
+
+### Verification and remaining environment issue
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check` and
+  `git diff --check` passed.
+- `cargo clippy` and `cargo test` could not resolve the offline registry
+  index entry for `owned_ttf_parser`, required by the manifest's
+  `printpdf 0.7.0`. The lockfile still records `printpdf 0.11.3` and is
+  inconsistent with the manifest. An attempted Cargo resolution rewrote
+  the lockfile; that generated change was restored. No network access was
+  attempted.
+- `cargo tree` failed for the same resolution issue, so the full
+  dependency network-capability check remains unverified. `cargo-deny`
+  is not installed. The cached `printpdf 0.7.0` manifest declares MIT;
+  transitive license compatibility remains unaudited.
+- The local environment has no TeX engine. The TeX subprocess path was
+  not run end to end. The built-in PDF and command integration tests are
+  present but could not be executed because dependency resolution failed.
+- `src/ipc/commands.ts` does not exist yet. Frontend wrappers remain in
+  Task 08 scope. `docs/techstack.yml` still lists `pulldown-cmark`, while
+  the Markdown renderer is hand-rolled; this drift was left unchanged.
+
+---
+
 ## 2026-11-04: Task 06-B PDF export follow-up
 
 ### Changes

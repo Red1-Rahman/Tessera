@@ -26,7 +26,7 @@ pub async fn export(
             path: "session".to_string(),
             message: "the project session lock was poisoned".to_string(),
         })?;
-        (session.document()?.clone(), session.assets_dir())
+        (session.document()?.clone(), session.assets_dir()?)
     };
     export::export_document(&document, &request, &assets_dir)
 }
