@@ -21,6 +21,24 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-04: Task 06-D Plain text export gap completion
+
+### Changes
+
+- Added `src-tauri/tests/export_plaintext_tests.rs` asserting no Markdown-like
+  markup characters (`**`, `*`, `<u>`, `` ` ``, `[@key]`) exist in plain text output,
+  and testing level 1 (`=`) and level 2 (`-`) heading underlines, list indentation (`(1) `, `  `),
+  table formatting, equations, figures, and opaque block rendering.
+- Updated `docs/specs.md` section 4 to document exact plain text heading underline conventions,
+  list indentation formatting, and opaque block output format.
+- Updated `docs/codebase.txt` to include `export_plaintext_tests.rs`.
+
+### Verification
+
+- `cargo fmt --manifest-path src-tauri/Cargo.toml --check` passed.
+- `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings` passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml` passed.
+
 ## 2026-11-04: Task 06-C Markdown export gap completion
 
 ### Changes
