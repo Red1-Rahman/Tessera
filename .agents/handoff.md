@@ -21,6 +21,50 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-04: Task 08-B frontend shell
+
+### Changes
+
+- Implemented the Task 08-B shell in uncommitted changes to
+  `src/App.tsx`, `src/App.test.tsx`, `src/components/`, and
+  `src/styles.css`.
+- Replaced the root placeholder with a toolbar, split-pane placeholder
+  editors, and export-menu overlay.
+- Added `Toolbar` with sync-status visual states and a local synced-scroll
+  toggle. The Save button is disabled because persistence is still a
+  placeholder. The app starts in `editing` status rather than claiming a
+  save completed.
+- Added `SplitPane` with pointer drag resizing, keyboard resizing through
+  arrow, Home, and End keys, pane minimum-width constraints, divider-width
+  aware calculations, and restoration of body cursor and text-selection
+  styles during cleanup.
+- Added `ExportMenu` with all six format entries, an accessible dialog,
+  Escape handling, a close button, focus-on-open, focus restoration, and
+  overlay click dismissal. Format buttons remain disabled until the real
+  export wiring planned for Task 10 exists.
+- Added the shell color, typography, responsive overflow, dark-mode,
+  reduced-motion, and high-contrast CSS foundation. Narrow viewports can
+  horizontally scroll to reach both minimum-width panes.
+
+### Verification and remaining limitations
+
+- `npm test -- --run --maxWorkers=1 --minWorkers=1` passed: 4 test files
+  and 24 tests.
+- `npm run typecheck` passed with `NODE_OPTIONS=--max-old-space-size=4096`.
+- `npm run lint -- --quiet` passed.
+- `git diff --check` passed.
+- The initial parallel test and typecheck attempts hit the local Node
+  memory limit. Re-running with one Vitest worker and a larger Node heap
+  passed.
+- The Task 08-B checklist calls for dedicated Toolbar status-transition
+  tests. No separate `Toolbar.test.tsx` exists yet; current coverage is
+  through the shell and SplitPane tests.
+- The Task 08-B files are not committed yet. `src/components/` and
+  `src/styles.css` are untracked, while `src/App.tsx` and
+  `src/App.test.tsx` are modified.
+
+---
+
 ## 2026-11-04: Task 08-A frontend IPC and document store
 
 ### Changes

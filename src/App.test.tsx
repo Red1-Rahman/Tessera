@@ -6,13 +6,21 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import App from "./App";
 
+afterEach(cleanup);
+
 describe("App", () => {
-  it("renders the application title", () => {
+  it("renders the application title in the toolbar", () => {
     render(<App />);
-    expect(screen.getByRole("heading", { name: "Tessera" })).toBeTruthy();
+    expect(screen.getByText("Tessera")).toBeTruthy();
+  });
+
+  it("renders the split pane placeholders", () => {
+    render(<App />);
+    expect(screen.getByText("LaTeX Pane")).toBeTruthy();
+    expect(screen.getByText("DOCX Pane")).toBeTruthy();
   });
 });
