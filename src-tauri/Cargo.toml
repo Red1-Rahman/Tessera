@@ -43,3 +43,4 @@ which = "8"
 [dev-dependencies]
 insta = { version = "1", features = ["json"] }
 proptest = "1"
+tauri = { version = "2", features = ["test"] }

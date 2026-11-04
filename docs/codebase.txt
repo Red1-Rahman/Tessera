@@ -96,6 +96,7 @@ src-tauri/tests/                                           Rust integration test
   export_markdown_tests.rs                                  Markdown export renderer test suite (Task 06-C).
   export_pdf_tests.rs                                       PDF export renderer test suite (Task 06-B).
   export_plaintext_tests.rs                                 Plain text export renderer test suite (Task 06-D).
+  commands_integration_tests.rs                             Tauri command integration tests for the open-edit-export cycle (Task 07).
   highlight_tests.rs                                        Okabe-Ito syntax highlighting integration tests (Task 06-A).
   model_tests.rs                                             Document Model validation and serde shape tests (serial-task02).
   sync_tests.rs                                             Bidirectional sync and patch engine integration tests (Task 05).

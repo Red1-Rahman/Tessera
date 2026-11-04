@@ -34,6 +34,8 @@ pub fn run() {
             commands::document::parse_latex,
             commands::document::apply_docx_edit,
             commands::document::save_project,
+            commands::document::get_highlight_tokens,
+            commands::export::export,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Tessera application");
