@@ -229,6 +229,10 @@ fn export_builtin_typesetter(document: &Document, destination: &str) -> Result<(
             format: ExportFormat::Pdf,
             message: format!("failed to load built-in HelveticaBold font: {e}"),
         })?;
+    let fonts = PdfFonts {
+        regular: &font_regular,
+        bold: &font_bold,
+    };
 
     let left_margin_pt = 56.69; // ~20mm
     let page_width_pt = 595.28; // ~210mm
@@ -237,7 +241,6 @@ fn export_builtin_typesetter(document: &Document, destination: &str) -> Result<(
 
     if let Some(title) = document.metadata().title() {
         draw_text_line(
-            &doc,
             &mut current_layer,
             title,
             20.0,
@@ -257,11 +260,9 @@ fn export_builtin_typesetter(document: &Document, destination: &str) -> Result<(
         }
 
         render_block(
-            &doc,
             &mut current_layer,
             current_block,
-            &font_regular,
-            &font_bold,
+            &fonts,
             left_margin_pt,
             &mut y_pt,
             content_width_pt,
@@ -280,12 +281,15 @@ fn export_builtin_typesetter(document: &Document, destination: &str) -> Result<(
     Ok(())
 }
 
+struct PdfFonts<'a> {
+    regular: &'a printpdf::IndirectFontRef,
+    bold: &'a printpdf::IndirectFontRef,
+}
+
 fn render_block(
-    doc: &printpdf::PdfDocumentReference,
     layer: &mut printpdf::PdfLayerReference,
     block: &Block,
-    font_regular: &printpdf::IndirectFontRef,
-    font_bold: &printpdf::IndirectFontRef,
+    fonts: &PdfFonts<'_>,
     x_pt: f32,
     y_pt: &mut f32,
     content_width_pt: f32,
@@ -301,11 +305,10 @@ fn render_block(
             };
             *y_pt -= 6.0;
             draw_text_line(
-                doc,
                 layer,
                 &text,
                 font_size,
-                font_bold,
+                fonts.bold,
                 x_pt,
                 y_pt,
                 content_width_pt,
@@ -315,11 +318,10 @@ fn render_block(
         Block::Paragraph { inline, .. } => {
             let text = flatten_inlines(inline);
             draw_text_line(
-                doc,
                 layer,
                 &text,
                 10.0,
-                font_regular,
+                fonts.regular,
                 x_pt,
                 y_pt,
                 content_width_pt,
@@ -335,11 +337,10 @@ fn render_block(
                 let mut inner_text = String::new();
                 inner_text.push_str(&flatten_blocks(item));
                 draw_text_line(
-                    doc,
                     layer,
                     &format!("{prefix}{inner_text}"),
                     10.0,
-                    font_regular,
+                    fonts.regular,
                     x_pt + 10.0,
                     y_pt,
                     content_width_pt - 10.0,
@@ -353,11 +354,10 @@ fn render_block(
                 .map(flatten_inlines)
                 .unwrap_or_else(|| "Table".to_string());
             draw_text_line(
-                doc,
                 layer,
                 &format!("Table: {caption}"),
                 10.0,
-                font_bold,
+                fonts.bold,
                 x_pt,
                 y_pt,
                 content_width_pt,
@@ -368,11 +368,10 @@ fn render_block(
                     .map(|cell| flatten_blocks(cell.blocks()))
                     .collect::<Vec<_>>();
                 draw_text_line(
-                    doc,
                     layer,
                     &cells.join(" | "),
                     9.0,
-                    font_regular,
+                    fonts.regular,
                     x_pt,
                     y_pt,
                     content_width_pt,
@@ -386,11 +385,10 @@ fn render_block(
                 .map(flatten_inlines)
                 .unwrap_or_else(|| "Figure".to_string());
             draw_text_line(
-                doc,
                 layer,
                 &format!("[Figure: {caption} ({})]", figure.asset_path()),
                 10.0,
-                font_bold,
+                fonts.bold,
                 x_pt,
                 y_pt,
                 content_width_pt,
@@ -399,11 +397,10 @@ fn render_block(
         }
         Block::Equation(equation) => {
             draw_text_line(
-                doc,
                 layer,
                 equation.latex_source(),
                 10.0,
-                font_regular,
+                fonts.regular,
                 x_pt + 20.0,
                 y_pt,
                 content_width_pt - 20.0,
@@ -413,11 +410,10 @@ fn render_block(
         Block::CodeBlock { text, .. } => {
             for line in text.lines() {
                 draw_text_line(
-                    doc,
                     layer,
                     line,
                     9.0,
-                    font_regular,
+                    fonts.regular,
                     x_pt + 15.0,
                     y_pt,
                     content_width_pt - 15.0,
@@ -428,11 +424,9 @@ fn render_block(
         Block::Quote { blocks, .. } => {
             for child in blocks {
                 render_block(
-                    doc,
                     layer,
                     child,
-                    font_regular,
-                    font_bold,
+                    fonts,
                     x_pt + 15.0,
                     y_pt,
                     content_width_pt - 15.0,
@@ -445,11 +439,10 @@ fn render_block(
                 OpaqueOrigin::Docx => "DOCX",
             };
             draw_text_line(
-                doc,
                 layer,
                 &format!("[{origin} content omitted: {}]", opaque.summary()),
                 9.0,
-                font_bold,
+                fonts.bold,
                 x_pt,
                 y_pt,
                 content_width_pt,
@@ -460,7 +453,6 @@ fn render_block(
 }
 
 fn draw_text_line(
-    _doc: &printpdf::PdfDocumentReference,
     layer: &mut printpdf::PdfLayerReference,
     text: &str,
     font_size: f32,
