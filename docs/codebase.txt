@@ -93,6 +93,7 @@ tests/                                                      Top-level integratio
 src-tauri/tests/                                           Rust integration tests (kept alongside the crate per Cargo convention).
   contracts.rs                                              Golden-file, round-trip (proptest), and snapshot (insta) tests for docs/contracts.md types.
   export_markdown_tests.rs                                  Markdown export renderer test suite (Task 06-C).
+  export_plaintext_tests.rs                                 Plain text export renderer test suite (Task 06-D).
   highlight_tests.rs                                        Okabe-Ito syntax highlighting integration tests (Task 06-A).
   model_tests.rs                                             Document Model validation and serde shape tests (serial-task02).
   sync_tests.rs                                             Bidirectional sync and patch engine integration tests (Task 05).
