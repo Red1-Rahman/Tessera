@@ -363,6 +363,7 @@ fn print_inlines(inlines: &[Inline], out: &mut String) {
                 let _ = write!(out, "\\({latex_source}\\)");
             }
             Inline::LineBreak => out.push_str("\\\\"),
+            Inline::Opaque { raw, .. } => out.push_str(raw),
         }
     }
 }

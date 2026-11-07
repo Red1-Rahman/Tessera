@@ -179,6 +179,7 @@ pub enum Inline {
     Footnote { inline: Vec<Inline> },
     InlineMath { latex_source: String },
     LineBreak,
+    Opaque { raw: String, reason: String },
 }
 ```
 
@@ -218,7 +219,7 @@ TesseraError>` with a `ValidationError` naming the offending field. The
 | `Figure` | `Figure::new(asset_path, caption, label, width_percent)` | empty `asset_path`; any path that escapes `.tessera/assets` on any platform (POSIX/UNC absolute, drive-prefixed such as `C:\img.png`, or containing `..`); `width_percent` outside (0, 100] or non-finite; invalid `label` |
 | `Equation` | `Equation::new(latex_source, display_mode, label)` | empty `latex_source`; invalid `label` |
 | `OpaqueBlock` | `OpaqueBlock::new(origin, raw, summary)` | empty `raw`; empty `summary` |
-| `Inline` | `Inline::text`, `Inline::bold`, `Inline::italic`, `Inline::underline`, `Inline::code`, `Inline::citation`, `Inline::cross_ref`, `Inline::footnote`, `Inline::inline_math`, `Inline::line_break` | empty text/code/math; empty citation key list or empty key; invalid `cross_ref` label |
+| `Inline` | `Inline::text`, `Inline::bold`, `Inline::italic`, `Inline::underline`, `Inline::code`, `Inline::citation`, `Inline::cross_ref`, `Inline::footnote`, `Inline::inline_math`, `Inline::line_break`, `Inline::opaque` | empty text/code/math/raw/reason; unbalanced braces in opaque raw; empty citation key list or empty key; invalid `cross_ref` label |
 
 The free function `validate_label(field, label)` implements the shared
 label rule (non-empty after trimming, no embedded whitespace) used by

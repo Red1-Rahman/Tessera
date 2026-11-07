@@ -21,6 +21,34 @@ history and that file stays rules.
 
 ---
 
+## 2026-11-07: Review fixes for project I/O, scroll suppression, and inline round trips
+
+### Changes
+
+- `open_project` now distinguishes a missing `main.tex` from other read
+  failures, including directories and metadata errors.
+- Synchronized scroll writes arm echo suppression only when the target differs,
+  and editor cleanup disposes pending animation frames.
+- Unsupported LaTeX inline commands preserve all adjacent brace arguments,
+  including non-alphabetic accent commands, and DOCX tagged chips round-trip
+  their XML-unescaped reason. Untagged controls remain paragraph text.
+- DOCX paragraph assembly preserves ordered chips, math, and line breaks,
+  including a final paragraph break. Invalid opaque-chip content falls back to
+  text. Atomic exports create their destination directory before staging.
+- Updated the inline Document Model contract and LaTeX/DOCX specification.
+
+### Verification
+
+- `cargo test --manifest-path src-tauri\Cargo.toml --lib`
+- `cargo test --manifest-path src-tauri\Cargo.toml --test open_document_tests`
+- `npm run typecheck`
+- `npm run lint -- --quiet`
+
+All commands passed. The untracked `demo/` directory was pre-existing and was
+left untouched.
+
+---
+
 ## 2026-11-04: Safe standalone saves and open-flow guards
 
 ### Changes

@@ -58,6 +58,7 @@ The remaining lower sectioning commands follow the same class hierarchy:
 | `\texttt{...}`, `\verb|...|` | `Inline::Code` |
 | `\footnote{...}` | `Inline::Footnote` |
 | `\\` (line break) | `Inline::LineBreak` |
+| Unsupported inline command with brace arguments | `Inline::Opaque`, preserving the command and all immediately adjacent brace arguments |
 
 Nested formatting (bold inside italic, etc.) is supported to arbitrary
 depth since `Inline` variants are recursive.
@@ -67,6 +68,10 @@ uses `\textbf`, `\textit`, and `\underline` for bold, italic, and
 underline. Inline code uses `\verb` when a safe delimiter is available
 and `\texttt` otherwise. These canonical spellings keep printer output
 stable while the parser continues to accept the alternatives above.
+
+Unsupported inline commands are shown as tagged opaque chips in the DOCX
+pane. The tag stores the reason and raw source so a DOCX round trip restores
+the original LaTeX command. Untagged Word controls remain paragraph text.
 
 ### 1.5 Lists
 

@@ -12,7 +12,8 @@
 use crate::core::error::{ExportFormat, TesseraError};
 pub use crate::core::model::SyncWarning;
 use crate::core::model::{
-    Block, Document, Equation, Inline, ListKind, OpaqueOrigin, Table, TableCell,
+    Block, Document, Equation, Inline, ListKind, OpaqueOrigin, Table, TableCell, INLINE_OPAQUE_ID,
+    INLINE_OPAQUE_TAG_PREFIX,
 };
 use std::collections::BTreeMap;
 use std::fs;
@@ -309,6 +310,9 @@ fn inlines_with_properties(
                 output.push_str(&omml(render, latex_source, false, path));
             }
             Inline::LineBreak => output.push_str("<w:r><w:br/></w:r>"),
+            Inline::Opaque { raw, reason } => {
+                output.push_str(&opaque_inline_sdt(raw, reason));
+            }
         }
     }
     output
@@ -329,6 +333,25 @@ fn styled_text_run(text: &str, properties: &[&str]) -> String {
     format!(
         "<w:r>{run_properties}<w:t xml:space=\"preserve\">{}</w:t></w:r>",
         xml(text)
+    )
+}
+
+/// Wraps an [`Inline::Opaque`] in a run-level structured document tag
+/// (`w:sdt`) so a supported Word reader can find the raw LaTeX source
+/// again: the `w:tag` value carries the reason, and the content run
+/// carries the raw source verbatim with the Okabe-Ito reddish purple
+/// color used for opaque content (see `docs/conventions.md`).
+fn opaque_inline_sdt(raw: &str, reason: &str) -> String {
+    let tag = xml(&format!("{INLINE_OPAQUE_TAG_PREFIX}{reason}"));
+    let text_run = styled_text_run(
+        raw,
+        &[
+            "<w:color w:val=\"CC79A7\"/>",
+            "<w:rFonts w:ascii=\"Courier New\" w:hAnsi=\"Courier New\"/>",
+        ],
+    );
+    format!(
+        "<w:sdt><w:sdtPr><w:id w:val=\"{INLINE_OPAQUE_ID}\"/><w:tag w:val=\"{tag}\"/></w:sdtPr><w:sdtContent>{text_run}</w:sdtContent></w:sdt>"
     )
 }
 

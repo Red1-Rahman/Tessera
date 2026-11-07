@@ -15,6 +15,7 @@
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
+use quick_xml::escape::unescape;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use zip::ZipArchive;
@@ -22,7 +23,7 @@ use zip::ZipArchive;
 use crate::core::error::{Pane, TesseraError};
 use crate::core::model::{
     Block, DocMetadata, Document, Equation, Figure, HeadingLevel, Inline, OpaqueOrigin, Table,
-    TableCell,
+    TableCell, INLINE_OPAQUE_TAG_PREFIX,
 };
 
 const MAX_DOCX_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
@@ -312,6 +313,13 @@ fn parse_paragraph(
     let mut text = String::new();
     let mut line_breaks = Vec::new();
     let mut refs = Vec::new();
+    let mut math_ranges: Vec<(usize, usize)> = Vec::new();
+    let mut math_start: Option<usize> = None;
+    let mut chips: Vec<(usize, String, String, usize)> = Vec::new();
+    let mut piece_order = 0usize;
+    let mut in_opaque_sdt = false;
+    let mut chip_reason: Option<String> = None;
+    let mut chip_text = String::new();
     loop {
         let event = reader
             .read_event_into(&mut buf)
@@ -324,6 +332,20 @@ fn parse_paragraph(
                 let n = local_name(qname.as_ref());
                 if n == b"pStyle" {
                     style = attr(e, b"w:val");
+                } else if n == b"sdt" && !in_opaque_sdt {
+                    in_opaque_sdt = true;
+                    chip_reason = None;
+                    chip_text.clear();
+                } else if n == b"tag" && in_opaque_sdt {
+                    if let Some(value) = attr(e, b"w:val") {
+                        let value =
+                            unescape(&value).map_err(|error| parse_error(error.to_string()))?;
+                        if let Some(reason) = value.strip_prefix(INLINE_OPAQUE_TAG_PREFIX) {
+                            chip_reason = Some(reason.to_string());
+                        }
+                    }
+                } else if n == b"oMath" && !in_opaque_sdt {
+                    math_start = Some(text.len());
                 } else if matches!(
                     n,
                     b"ins"
@@ -349,11 +371,29 @@ fn parse_paragraph(
                 if n == b"pStyle" {
                     style = attr(e, b"w:val");
                 }
+                if n == b"tag" && in_opaque_sdt {
+                    if let Some(value) = attr(e, b"w:val") {
+                        let value =
+                            unescape(&value).map_err(|error| parse_error(error.to_string()))?;
+                        if let Some(reason) = value.strip_prefix(INLINE_OPAQUE_TAG_PREFIX) {
+                            chip_reason = Some(reason.to_string());
+                        }
+                    }
+                }
                 if n == b"tab" {
-                    text.push('\t');
+                    if in_opaque_sdt {
+                        chip_text.push('\t');
+                    } else {
+                        text.push('\t');
+                    }
                 }
                 if n == b"br" {
-                    line_breaks.push(text.len());
+                    if in_opaque_sdt {
+                        chip_text.push('\n');
+                    } else {
+                        line_breaks.push((text.len(), piece_order));
+                        piece_order += 1;
+                    }
                 }
                 if n == b"blip" {
                     if let Some(id) = attr(e, b"r:embed") {
@@ -365,9 +405,29 @@ fn parse_paragraph(
             }
             Event::Text(e) => {
                 let value = e.unescape().map_err(|e| parse_error(e.to_string()))?;
-                text.push_str(&value);
+                if in_opaque_sdt {
+                    chip_text.push_str(&value);
+                } else {
+                    text.push_str(&value);
+                }
             }
-            Event::End(_) => {
+            Event::End(e) => {
+                let qname = e.name();
+                let n = local_name(qname.as_ref());
+                if n == b"oMath" && !in_opaque_sdt {
+                    if let Some(start) = math_start.take() {
+                        math_ranges.push((start, text.len()));
+                    }
+                }
+                if n == b"sdt" && in_opaque_sdt {
+                    in_opaque_sdt = false;
+                    if let Some(reason) = chip_reason.take() {
+                        chips.push((text.len(), chip_text.clone(), reason, piece_order));
+                        piece_order += 1;
+                    } else {
+                        text.push_str(&chip_text);
+                    }
+                }
                 depth -= 1;
             }
             Event::Eof => return Err(parse_error("unexpected end of document paragraph".into())),
@@ -415,15 +475,8 @@ fn parse_paragraph(
         )?;
         return Ok((Block::figure(figure), refs, style_name));
     }
-    let inline = if xml_writer.get_ref().windows(5).any(|w| w == b"oMath") {
-        if text.is_empty() {
-            Vec::new()
-        } else {
-            vec![Inline::inline_math(text.clone())?]
-        }
-    } else {
-        text_with_line_breaks(&text, &line_breaks)?
-    };
+    let global_math = xml_writer.get_ref().windows(5).any(|w| w == b"oMath");
+    let inline = build_paragraph_inlines(&text, &line_breaks, &math_ranges, &chips, global_math)?;
     let block = match style_name.as_str() {
         "Title" | "Subtitle" => Block::paragraph(inline),
         "Heading 1" => Block::heading(HeadingLevel::H1, inline, None)?,
@@ -440,13 +493,16 @@ fn parse_paragraph(
     Ok((block, refs, style_name))
 }
 
-fn text_with_line_breaks(text: &str, breaks: &[usize]) -> Result<Vec<Inline>, TesseraError> {
+fn text_with_line_breaks(
+    text: &str,
+    breaks: &[(usize, usize)],
+) -> Result<Vec<Inline>, TesseraError> {
     if text.is_empty() && breaks.is_empty() {
         return Ok(Vec::new());
     }
     let mut result = Vec::new();
     let mut start = 0;
-    for &break_at in breaks {
+    for &(break_at, _) in breaks {
         if break_at > start {
             result.push(Inline::text(text[start..break_at].to_string())?);
         }
@@ -457,6 +513,89 @@ fn text_with_line_breaks(text: &str, breaks: &[usize]) -> Result<Vec<Inline>, Te
         result.push(Inline::text(text[start..].to_string())?);
     }
     Ok(result)
+}
+
+/// One non-text piece of a paragraph: a math range or an inline opaque
+/// chip. Positions are byte offsets into the paragraph text buffer.
+enum ParagraphPiece {
+    Math { end: usize },
+    Chip(String, String),
+    Break,
+}
+
+/// Assembles the paragraph's inline list from the collected text,
+/// line-break positions, math ranges, and inline opaque chips. Tessera's
+/// writer never puts a chip inside a math range; if a foreign document
+/// does, the math range is split around the chip so the chip keeps its
+/// position. A paragraph with math but no positioned ranges keeps the
+/// legacy single-math behavior through `global_math`.
+fn build_paragraph_inlines(
+    text: &str,
+    breaks: &[(usize, usize)],
+    math_ranges: &[(usize, usize)],
+    chips: &[(usize, String, String, usize)],
+    global_math: bool,
+) -> Result<Vec<Inline>, TesseraError> {
+    if chips.is_empty() && math_ranges.is_empty() {
+        return text_with_line_breaks(text, breaks);
+    }
+    if chips.is_empty() && global_math {
+        return if text.is_empty() {
+            Ok(Vec::new())
+        } else {
+            Ok(vec![Inline::inline_math(text.to_string())?])
+        };
+    }
+
+    // Split math ranges around chip positions so both can be ordered.
+    let mut pieces: Vec<(usize, usize, ParagraphPiece)> = Vec::new();
+    for (start, end) in math_ranges {
+        pieces.push((*start, usize::MAX, ParagraphPiece::Math { end: *end }));
+    }
+    for (position, order) in breaks {
+        pieces.push((*position, *order, ParagraphPiece::Break));
+    }
+    for (position, raw, reason, order) in chips {
+        pieces.push((
+            *position,
+            *order,
+            ParagraphPiece::Chip(raw.clone(), reason.clone()),
+        ));
+    }
+    pieces.sort_by_key(|(position, order, _)| (*position, *order));
+
+    let mut inline = Vec::new();
+    let mut cursor = 0usize;
+    for (position, _, piece) in pieces {
+        if position > cursor {
+            inline.push(Inline::text(text[cursor..position].to_string())?);
+        }
+        match piece {
+            ParagraphPiece::Math { end } => {
+                if end > position {
+                    let math_text = &text[position..end];
+                    if !math_text.is_empty() {
+                        inline.push(Inline::inline_math(math_text.to_string())?);
+                    }
+                }
+                cursor = end.max(position);
+            }
+            ParagraphPiece::Chip(raw, reason) => {
+                match Inline::opaque(raw.clone(), reason.clone()) {
+                    Ok(value) => inline.push(value),
+                    Err(_) if !raw.is_empty() => inline.push(Inline::text(raw)?),
+                    Err(_) => {}
+                }
+            }
+            ParagraphPiece::Break => {
+                inline.push(Inline::line_break());
+            }
+        }
+    }
+    if cursor < text.len() {
+        inline.push(Inline::text(text[cursor..].to_string())?);
+    }
+    Ok(inline)
 }
 
 fn block_plain_text(block: &Block) -> Option<String> {

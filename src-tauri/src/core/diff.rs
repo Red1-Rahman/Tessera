@@ -288,6 +288,7 @@ fn validate_inlines(inlines: Vec<Inline>) -> Result<Vec<Inline>, TesseraError> {
             Inline::Footnote { inline } => Inline::footnote(validate_inlines(inline)?),
             Inline::InlineMath { latex_source } => Inline::inline_math(latex_source)?,
             Inline::LineBreak => Inline::line_break(),
+            Inline::Opaque { raw, reason } => Inline::opaque(raw, reason)?,
         });
     }
     Ok(validated)

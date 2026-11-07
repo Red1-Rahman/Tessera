@@ -302,6 +302,9 @@ impl Renderer {
                     let _ = write!(out, "${latex_source}$");
                 }
                 Inline::LineBreak => out.push_str("  \n"),
+                Inline::Opaque { raw, reason } => {
+                    let _ = write!(out, "<!-- Opaque inline omitted: {reason} ({raw}) -->");
+                }
             }
         }
         out

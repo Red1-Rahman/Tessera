@@ -177,6 +177,7 @@ fn inlines(inline_nodes: &[Inline]) -> String {
             }
             Inline::InlineMath { latex_source } => out.push_str(latex_source),
             Inline::LineBreak => out.push('\n'),
+            Inline::Opaque { raw, .. } => out.push_str(raw),
         }
     }
     out

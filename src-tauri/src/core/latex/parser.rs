@@ -122,9 +122,18 @@ fn parse_blocks(source: &str, class: &str) -> Result<Vec<Block>, TesseraError> {
                     rest = &rest[consumed..];
                     continue;
                 }
-                "tabular" => Block::table(parse_tabular(&content)?),
-                "table" => Block::table(parse_table_float(&content)?),
-                "figure" => parse_figure(&content)?,
+                "tabular" => match parse_tabular(&content) {
+                    Ok(table) => Block::table(table),
+                    Err(_) => opaque(&rest[..consumed], "Unsupported LaTeX tabular content")?,
+                },
+                "table" => match parse_table_float(&content) {
+                    Ok(table) => Block::table(table),
+                    Err(_) => opaque(&rest[..consumed], "Unsupported LaTeX table float content")?,
+                },
+                "figure" => match parse_figure(&content) {
+                    Ok(figure) => figure,
+                    Err(_) => opaque(&rest[..consumed], "Unsupported LaTeX figure content")?,
+                },
                 "quote" => Block::quote(parse_blocks(&content, class)?),
                 "tikzpicture" | "tikz" | "pgfpicture" | "pgfplots" => opaque(
                     &format!("\\begin{{{env}}}{content}\\end{{{env}}}"),
@@ -185,8 +194,15 @@ fn parse_blocks(source: &str, class: &str) -> Result<Vec<Block>, TesseraError> {
                     ),
                     _ => (None, 0),
                 };
-                blocks.push(Block::heading(level, parse_inlines(&arg)?, label)?);
-                rest = &rest[consumed + label_consumed..];
+                let heading_span = consumed + label_consumed;
+                match parse_inlines(&arg) {
+                    Ok(inline) => blocks.push(Block::heading(level, inline, label)?),
+                    Err(_) => blocks.push(opaque(
+                        rest[..heading_span].trim(),
+                        "Unsupported LaTeX heading content",
+                    )?),
+                }
+                rest = &rest[heading_span..];
                 continue;
             }
             if cmd == "maketitle" {
@@ -239,7 +255,13 @@ fn parse_blocks(source: &str, class: &str) -> Result<Vec<Block>, TesseraError> {
                     | "textbackslash"
             ) {
                 let end = next_block_boundary(rest);
-                blocks.push(Block::paragraph(parse_inlines(rest[..end].trim())?));
+                match parse_inlines(rest[..end].trim()) {
+                    Ok(inline) => blocks.push(Block::paragraph(inline)),
+                    Err(_) => blocks.push(opaque(
+                        rest[..end].trim(),
+                        "Unsupported LaTeX inline construct",
+                    )?),
+                }
                 rest = &rest[end..];
                 continue;
             }
@@ -283,7 +305,10 @@ fn parse_list(content: &str, kind: ListKind, class: &str) -> Result<Block, Tesse
             let rest = piece[end + 1..].trim();
             if !rest.is_empty() {
                 if let Some(item) = items.last_mut() {
-                    item.push(Block::paragraph(parse_inlines(rest)?));
+                    match parse_inlines(rest) {
+                        Ok(inline) => item.push(Block::paragraph(inline)),
+                        Err(_) => item.push(opaque(rest, "Unsupported LaTeX inline construct")?),
+                    }
                 }
             }
         } else {
@@ -333,7 +358,10 @@ fn parse_tabular(content: &str) -> Result<Table, TesseraError> {
                 (1, 1, raw.trim().to_string())
             };
             cells.push(TableCell::new(
-                vec![Block::paragraph(parse_inlines(&text)?)],
+                match parse_inlines(&text) {
+                    Ok(inline) => vec![Block::paragraph(inline)],
+                    Err(_) => vec![opaque(text.trim(), "Unsupported LaTeX table cell content")?],
+                },
                 col_span,
                 row_span,
             )?);
@@ -536,10 +564,22 @@ fn parse_inlines(source: &str) -> Result<Vec<Inline>, TesseraError> {
                     }
                     "textbackslash" => Inline::text("\\".to_string())?,
                     _ => {
-                        return Err(parse_error(
-                            source,
-                            &format!("unsupported inline command: \\{name}"),
-                        ))
+                        // Unknown inline commands (preamble macros such as
+                        // \link, package commands, malformed names) are
+                        // preserved byte-for-byte as Inline::Opaque instead
+                        // of failing the parse; see docs/specs.md, section
+                        // 1.4. The span covers the command plus any brace
+                        // group arguments that followed it.
+                        let opaque_group_tokens = adjacent_group_tokens(&tokens, source, index)?;
+                        let opaque_consumed = 1 + opaque_group_tokens;
+                        let raw_end = if opaque_group_tokens > 0 {
+                            tokens[index + opaque_group_tokens].span.end
+                        } else {
+                            token.span.end
+                        };
+                        let raw = source[token.span.start..raw_end].to_string();
+                        consumed = opaque_consumed;
+                        Inline::opaque(raw, format!("Unsupported LaTeX command: \\{name}"))?
                     }
                 };
                 out.push(node);
@@ -779,6 +819,7 @@ fn command_group(
                 skipped += 1;
                 index += 1;
             }
+
             InlineTokenKind::OpenBrace => {
                 let (arg, consumed) = collect_group(tokens, source, index)?;
                 return Ok((Some(arg), skipped + consumed));
@@ -787,6 +828,35 @@ fn command_group(
         }
     }
     Ok((None, 0))
+}
+
+fn adjacent_group_tokens(
+    tokens: &[InlineToken],
+    source: &str,
+    command_index: usize,
+) -> Result<usize, TesseraError> {
+    let mut index = command_index + 1;
+    let mut consumed = 0;
+    while index < tokens.len() {
+        let mut group_start = index;
+        while group_start < tokens.len()
+            && matches!(
+                &tokens[group_start].kind,
+                InlineTokenKind::Text(text) if text.trim().is_empty()
+            )
+        {
+            group_start += 1;
+        }
+        if group_start >= tokens.len()
+            || !matches!(tokens[group_start].kind, InlineTokenKind::OpenBrace)
+        {
+            break;
+        }
+        let (_, group_consumed) = collect_group(tokens, source, group_start)?;
+        consumed += group_start - index + group_consumed;
+        index = group_start + group_consumed;
+    }
+    Ok(consumed)
 }
 
 fn collect_group(

@@ -515,6 +515,7 @@ fn flatten_inlines(inlines: &[crate::core::model::Inline]) -> String {
             Inline::CrossRef { label } => out.push_str(&format!("[{label}]")),
             Inline::InlineMath { latex_source } => out.push_str(latex_source),
             Inline::LineBreak => out.push(' '),
+            Inline::Opaque { raw, .. } => out.push_str(raw),
         }
     }
     out

@@ -927,6 +927,17 @@ pub enum OpaqueOrigin {
     Docx,
 }
 
+/// Tag value prefix marking a run-level structured document tag that
+/// carries [`Inline::Opaque`] content (see `core/docx/writer.rs` and
+/// `docs/specs.md` section 2). The chip's reason follows the prefix and
+/// a single `:`.
+pub(crate) const INLINE_OPAQUE_TAG_PREFIX: &str = "tessera-inline-opaque:";
+
+/// `w:id` value for inline opaque structured document tags. Ids only
+/// need to identify the tag within one document; a fixed value keeps
+/// output deterministic.
+pub(crate) const INLINE_OPAQUE_ID: u32 = 4_242;
+
 /// An inline (span-level) node. JSON shape is
 /// `{"type": "<variant>", ...fields}`, per `docs/contracts.md`, section
 /// 1.
@@ -939,16 +950,42 @@ pub enum OpaqueOrigin {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum Inline {
-    Text { text: String },
-    Bold { inline: Vec<Inline> },
-    Italic { inline: Vec<Inline> },
-    Underline { inline: Vec<Inline> },
-    Code { text: String },
-    Citation { keys: Vec<String> },
-    CrossRef { label: String },
-    Footnote { inline: Vec<Inline> },
-    InlineMath { latex_source: String },
+    Text {
+        text: String,
+    },
+    Bold {
+        inline: Vec<Inline>,
+    },
+    Italic {
+        inline: Vec<Inline>,
+    },
+    Underline {
+        inline: Vec<Inline>,
+    },
+    Code {
+        text: String,
+    },
+    Citation {
+        keys: Vec<String>,
+    },
+    CrossRef {
+        label: String,
+    },
+    Footnote {
+        inline: Vec<Inline>,
+    },
+    InlineMath {
+        latex_source: String,
+    },
     LineBreak,
+    /// A LaTeX inline construct with no first-class mapping, preserved
+    /// byte-for-byte so the LaTeX pane round-trips exactly. Shown as a
+    /// non-editable chip in the DOCX pane. See `docs/specs.md`, section
+    /// 1.4, and `docs/contracts.md` "Constructors".
+    Opaque {
+        raw: String,
+        reason: String,
+    },
 }
 
 impl Inline {
@@ -1048,4 +1085,58 @@ impl Inline {
     pub fn line_break() -> Self {
         Inline::LineBreak
     }
+
+    /// Preserves an unsupported LaTeX inline construct verbatim
+    /// (from an inline command with no first-class mapping, such as a
+    /// macro defined in the preamble, see `docs/specs.md` section 1.4).
+    /// `raw` must be non-empty (after trimming) and brace-balanced, and
+    /// `reason` must be non-empty; both appear in the DOCX pane and both
+    /// survive the round trip unchanged.
+    pub fn opaque(raw: String, reason: String) -> Result<Self, TesseraError> {
+        if raw.trim().is_empty() {
+            return Err(TesseraError::validation(
+                "inline.opaque.raw",
+                "opaque inline source must not be empty or whitespace-only",
+            ));
+        }
+        if !inline_braces_balanced(&raw) {
+            return Err(TesseraError::validation(
+                "inline.opaque.raw",
+                "opaque inline source must have balanced braces",
+            ));
+        }
+        if reason.trim().is_empty() {
+            return Err(TesseraError::validation(
+                "inline.opaque.reason",
+                "opaque inline reason must not be empty or whitespace-only",
+            ));
+        }
+        Ok(Inline::Opaque { raw, reason })
+    }
+}
+
+/// Counts unescaped braces, treating `\x` as an escape of the following
+/// character. Returns true when every `{` opened is closed and no `}`
+/// closes an unopened group.
+fn inline_braces_balanced(source: &str) -> bool {
+    let mut depth: i64 = 0;
+    let mut escaped = false;
+    for byte in source.bytes() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match byte {
+            b'\\' => escaped = true,
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth < 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    depth == 0
 }
