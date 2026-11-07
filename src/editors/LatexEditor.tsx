@@ -16,6 +16,7 @@ import {
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import type { HighlightKind, HighlightToken } from "../ipc/commands";
+import { createScrollEchoSuppressor, type ScrollEchoSuppressor } from "./scrollEcho";
 
 export interface EditorFlash {
   from: number;
@@ -151,6 +152,8 @@ export const LatexEditor = forwardRef<LatexEditorHandle, LatexEditorProps>(funct
   const onChangeRef = useRef(onChange);
   const suppressChangeRef = useRef(false);
   const appliedScrollRef = useRef<number | null>(null);
+  const scrollEchoRef = useRef<ScrollEchoSuppressor | null>(null);
+  if (scrollEchoRef.current === null) scrollEchoRef.current = createScrollEchoSuppressor();
   const onNavigateRef = useRef(onNavigate);
   const onScrollRef = useRef(onScroll);
 
@@ -193,6 +196,7 @@ export const LatexEditor = forwardRef<LatexEditorHandle, LatexEditorProps>(funct
     view.dom.classList.add("latex-codemirror");
 
     const handleScroll = () => {
+      if (scrollEchoRef.current?.isSuppressed()) return;
       const scroller = view.scrollDOM;
       const range = scroller.scrollHeight - scroller.clientHeight;
       if (range > 0) onScrollRef.current(scroller.scrollTop / range);
@@ -271,6 +275,7 @@ export const LatexEditor = forwardRef<LatexEditorHandle, LatexEditorProps>(funct
     const view = viewRef.current;
     if (!view || scrollRatio === null || (appliedScrollRef.current !== null && Math.abs(scrollRatio - appliedScrollRef.current) < 1e-4)) return;
     const scroller = view.scrollDOM;
+    scrollEchoRef.current?.begin();
     scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * scrollRatio;
     appliedScrollRef.current = scrollRatio;
   }, [scrollRatio]);

@@ -63,4 +63,53 @@ describe("LatexEditor", () => {
     await waitFor(() => expect(screen.getByTestId("latex-editor").textContent).toContain("second"));
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("reports user scrolls but suppresses the echo of a synchronization-driven scroll", async () => {
+    const onScroll = vi.fn();
+    const fireScroll = (): void => {
+      (document.querySelector(".cm-scroller") as HTMLElement).dispatchEvent(new Event("scroll"));
+    };
+
+    const renderResult = render(
+      <LatexEditor
+        value="first"
+        tokens={[]}
+        flash={null}
+        warnings={[]}
+        onChange={vi.fn()}
+        onScroll={onScroll}
+        scrollRatio={null}
+        onNavigate={vi.fn()}
+      />
+    );
+    const scroller = document.querySelector(".cm-scroller") as HTMLElement;
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 900 });
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 100 });
+
+    scroller.dispatchEvent(new Event("scroll"));
+    expect(onScroll).toHaveBeenCalledTimes(1);
+
+    renderResult.rerender(
+      <LatexEditor
+        value="first"
+        tokens={[]}
+        flash={null}
+        warnings={[]}
+        onChange={vi.fn()}
+        onScroll={onScroll}
+        scrollRatio={0.5}
+        onNavigate={vi.fn()}
+      />
+    );
+
+    fireScroll();
+    expect(onScroll).toHaveBeenCalledTimes(1);
+
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+
+    fireScroll();
+    expect(onScroll).toHaveBeenCalledTimes(2);
+  });
 });

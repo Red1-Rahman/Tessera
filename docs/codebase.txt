@@ -46,6 +46,7 @@ src/                                  Frontend: TypeScript + React, bundled with
     LatexEditor.tsx                     CodeMirror 6 instance for the LaTeX pane. Okabe-Ito theme.
     LatexEditor.test.tsx                Component tests for source, token decorations, warnings, and external updates.
     DocxEditor.tsx                       ProseMirror/Tiptap instance for the DOCX pane.
+    scrollEcho.ts                          Shared helper that suppresses scroll-event echo while an editor applies a sync-driven scrollTop, so synchronized scrolling cannot ping-pong between panes.
     DocxFormatToolbar.tsx                    Word-style formatting bar above the DOCX pane (undo, block style, marks, lists, quote).
     DocxFormatToolbar.css                    Styles for the formatting bar.
     docxFormatting.ts                        ProseMirror commands behind the bar, limited to what the Document Model can represent.

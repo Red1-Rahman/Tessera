@@ -16,6 +16,7 @@ import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
 import "prosemirror-view/style/prosemirror.css";
 import type { Block, Document, Inline, SyncWarning } from "../ipc/commands";
 import { DocxFormatToolbar } from "./DocxFormatToolbar";
+import { createScrollEchoSuppressor, type ScrollEchoSuppressor } from "./scrollEcho";
 import { formattingKeymap } from "./docxFormatting";
 
 export interface DocxEditorHandle {
@@ -439,6 +440,8 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
   const callbacksRef = useRef({ onChange, onScroll, onNavigate });
   const applyingRemoteRef = useRef(false);
   const appliedScrollRef = useRef<number | null>(null);
+  const scrollEchoRef = useRef<ScrollEchoSuppressor | null>(null);
+  if (scrollEchoRef.current === null) scrollEchoRef.current = createScrollEchoSuppressor();
   const documentRef = useRef(document);
   const [toolbarState, setToolbarState] = useState<{ view: EditorView; state: EditorState } | null>(null);
   callbacksRef.current = { onChange, onScroll, onNavigate };
@@ -468,6 +471,7 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
     scrollToRatio(ratio) {
       const element = paneRef.current;
       if (!element) return;
+      scrollEchoRef.current?.begin();
       element.scrollTop = Math.max(0, element.scrollHeight - element.clientHeight) * ratio;
       appliedScrollRef.current = ratio;
     },
@@ -508,6 +512,7 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
     viewRef.current = view;
     setToolbarState({ view, state: view.state });
     const handleScroll = () => {
+      if (scrollEchoRef.current?.isSuppressed()) return;
       const element = paneRef.current;
       if (!element) return;
       const range = element.scrollHeight - element.clientHeight;
@@ -550,6 +555,7 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
   useEffect(() => {
     const element = paneRef.current;
     if (!element || scrollRatio === null || (appliedScrollRef.current !== null && Math.abs(scrollRatio - appliedScrollRef.current) < 1e-4)) return;
+    scrollEchoRef.current?.begin();
     element.scrollTop = Math.max(0, element.scrollHeight - element.clientHeight) * scrollRatio;
     appliedScrollRef.current = scrollRatio;
   }, [scrollRatio]);

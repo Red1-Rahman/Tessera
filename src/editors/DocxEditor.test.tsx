@@ -114,4 +114,53 @@ describe("DocxEditor", () => {
     );
     expect(() => ref.current?.scrollToBlock(99)).not.toThrow();
   });
+
+  it("reports user scrolls but suppresses the echo of a synchronization-driven scroll", async () => {
+    const onScroll = vi.fn();
+    const renderResult = render(
+      <DocxEditor
+        document={makeDocument([paragraph("Only block")])}
+        warnings={[]}
+        flashToken={0}
+        flashIndices={[]}
+        hasUnsubmittedChanges={false}
+        onChange={vi.fn()}
+        onScroll={onScroll}
+        scrollRatio={null}
+        onNavigate={vi.fn()}
+      />
+    );
+    const pane = document.querySelector(".docx-editor") as HTMLElement;
+    Object.defineProperty(pane, "scrollHeight", { configurable: true, value: 900 });
+    Object.defineProperty(pane, "clientHeight", { configurable: true, value: 100 });
+
+    pane.dispatchEvent(new Event("scroll"));
+    expect(onScroll).toHaveBeenCalledTimes(1);
+
+    renderResult.rerender(
+      <DocxEditor
+        document={makeDocument([paragraph("Only block")])}
+        warnings={[]}
+        flashToken={0}
+        flashIndices={[]}
+        hasUnsubmittedChanges={false}
+        onChange={vi.fn()}
+        onScroll={onScroll}
+        scrollRatio={0.5}
+        onNavigate={vi.fn()}
+      />
+    );
+
+    pane.dispatchEvent(new Event("scroll"));
+    expect(onScroll).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+    });
+
+    pane.dispatchEvent(new Event("scroll"));
+    expect(onScroll).toHaveBeenCalledTimes(2);
+  });
 });
