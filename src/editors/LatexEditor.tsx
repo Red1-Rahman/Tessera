@@ -238,6 +238,7 @@ export const LatexEditor = forwardRef<LatexEditorHandle, LatexEditorProps>(funct
       view.scrollDOM.removeEventListener("scroll", handleScroll);
       view.dom.removeEventListener("click", handleClick);
       view.dom.removeEventListener("keydown", handleKeydown);
+      scrollEchoRef.current?.dispose();
       view.destroy();
       viewRef.current = null;
     };
@@ -275,8 +276,11 @@ export const LatexEditor = forwardRef<LatexEditorHandle, LatexEditorProps>(funct
     const view = viewRef.current;
     if (!view || scrollRatio === null || (appliedScrollRef.current !== null && Math.abs(scrollRatio - appliedScrollRef.current) < 1e-4)) return;
     const scroller = view.scrollDOM;
-    scrollEchoRef.current?.begin();
-    scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * scrollRatio;
+    const target = Math.max(0, scroller.scrollHeight - scroller.clientHeight) * scrollRatio;
+    if (target !== scroller.scrollTop) {
+      scrollEchoRef.current?.begin();
+      scroller.scrollTop = target;
+    }
     appliedScrollRef.current = scrollRatio;
   }, [scrollRatio]);
 

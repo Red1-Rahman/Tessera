@@ -471,8 +471,11 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
     scrollToRatio(ratio) {
       const element = paneRef.current;
       if (!element) return;
-      scrollEchoRef.current?.begin();
-      element.scrollTop = Math.max(0, element.scrollHeight - element.clientHeight) * ratio;
+      const target = Math.max(0, element.scrollHeight - element.clientHeight) * ratio;
+      if (target !== element.scrollTop) {
+        scrollEchoRef.current?.begin();
+        element.scrollTop = target;
+      }
       appliedScrollRef.current = ratio;
     },
   }), []);
@@ -521,6 +524,7 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
     paneRef.current?.addEventListener("scroll", handleScroll, { passive: true });
     return () => {
       paneRef.current?.removeEventListener("scroll", handleScroll);
+      scrollEchoRef.current?.dispose();
       view.destroy();
       viewRef.current = null;
     };
@@ -555,8 +559,11 @@ export const DocxEditor = forwardRef<DocxEditorHandle, DocxEditorProps>(function
   useEffect(() => {
     const element = paneRef.current;
     if (!element || scrollRatio === null || (appliedScrollRef.current !== null && Math.abs(scrollRatio - appliedScrollRef.current) < 1e-4)) return;
-    scrollEchoRef.current?.begin();
-    element.scrollTop = Math.max(0, element.scrollHeight - element.clientHeight) * scrollRatio;
+    const target = Math.max(0, element.scrollHeight - element.clientHeight) * scrollRatio;
+    if (target !== element.scrollTop) {
+      scrollEchoRef.current?.begin();
+      element.scrollTop = target;
+    }
     appliedScrollRef.current = scrollRatio;
   }, [scrollRatio]);
 

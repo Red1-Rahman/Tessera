@@ -23,6 +23,8 @@
 export interface ScrollEchoSuppressor {
   /** Arms suppression immediately before a programmatic scrollTop write. */
   begin(): void;
+  /** Cancels pending suppression callbacks. */
+  dispose(): void;
   /** True between `begin()` and the second subsequent animation frame. */
   isSuppressed(): boolean;
 }
@@ -41,6 +43,11 @@ export function createScrollEchoSuppressor(): ScrollEchoSuppressor {
           frame = null;
         });
       });
+    },
+    dispose() {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = null;
+      suppressed = false;
     },
     isSuppressed() {
       return suppressed;
