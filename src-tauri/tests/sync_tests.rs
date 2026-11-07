@@ -150,6 +150,32 @@ fn open_project_reconstructs_missing_project_json() {
 }
 
 #[test]
+fn open_project_without_main_tex_fails_with_a_clear_error() {
+    let temp = TempDir::new("empty_project");
+    fs::create_dir_all(temp.path().join("project")).expect("create empty project dir");
+
+    let mut session = ProjectSession::new();
+    let error = session
+        .open_project(&temp.path().join("project").display().to_string())
+        .expect_err("open_project without main.tex fails");
+
+    match error {
+        TesseraError::IoError { path, message } => {
+            assert!(path.ends_with("main.tex"), "error path is main.tex: {path}");
+            assert!(
+                message.contains("main.tex was not found"),
+                "message: {message}"
+            );
+            assert!(
+                message.contains("Open File"),
+                "message points at the standalone-file alternative: {message}"
+            );
+        }
+        _ => panic!("missing main.tex is an IoError, got {error:?}"),
+    }
+}
+
+#[test]
 fn stale_versions_are_rejected_for_both_edit_paths() {
     let temp = TempDir::new("stale");
     let mut session = new_session(&temp);

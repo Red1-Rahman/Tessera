@@ -47,7 +47,7 @@ function errorMessage(error: unknown): string {
     case "StaleVersion": return `This edit used version ${tesseraError.requested}, but the current version is ${tesseraError.current}.`;
     case "ParseError": return tesseraError.message;
     case "ValidationError": return tesseraError.message;
-    case "IoError": return tesseraError.message;
+    case "IoError": return `${tesseraError.message} (${tesseraError.path})`;
     case "ExportError": return tesseraError.message;
   }
 }
