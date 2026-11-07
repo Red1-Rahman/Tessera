@@ -157,6 +157,10 @@ fn text_output(
 fn write_atomically(path: &str, bytes: &[u8]) -> Result<(), TesseraError> {
     let destination = Path::new(path);
     let parent = destination.parent().unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent).map_err(|error| TesseraError::IoError {
+        path: parent.display().to_string(),
+        message: format!("failed to create export directory: {error}"),
+    })?;
     let name = destination
         .file_name()
         .unwrap_or_default()

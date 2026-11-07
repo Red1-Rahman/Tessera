@@ -170,16 +170,19 @@ impl ProjectSession {
     pub fn open_project(&mut self, path: &str) -> Result<ProjectState, TesseraError> {
         let root = project_root(path)?;
         let main_tex = root.join("main.tex");
-        if !main_tex.is_file() {
-            return Err(TesseraError::IoError {
-                path: main_tex.display().to_string(),
-                message: format!(
-                    "main.tex was not found in {}. Tessera opens a project from a folder that contains main.tex; use File > Open File... for a standalone .tex or .docx file",
-                    root.display()
-                ),
-            });
-        }
-        let source = fs::read_to_string(&main_tex).map_err(|error| io_error(&main_tex, error))?;
+        let source = match fs::read_to_string(&main_tex) {
+            Ok(source) => source,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Err(TesseraError::IoError {
+                    path: main_tex.display().to_string(),
+                    message: format!(
+                        "main.tex was not found in {}. Tessera opens a project from a folder that contains main.tex; use File > Open File... for a standalone .tex or .docx file",
+                        root.display()
+                    ),
+                });
+            }
+            Err(error) => return Err(io_error(&main_tex, error)),
+        };
         let mut document = parse_latex(&source)?;
         let mut warnings = initial_document_warnings(&document);
 
